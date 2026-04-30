@@ -7,18 +7,160 @@ datasource db {
   provider = "postgresql"
 }
 
+model User {
+  id            Int            @id @default(autoincrement())
+  name          String
+  email         String         @unique
+  passwordHash  String?
+  persona       String?
+  createdAt     DateTime       @default(now())
+
+  projects      Project[]
+  labels        Label[]
+  favorites     Favorite[]
+  smartViews    SmartView[]
+  createdTasks  Task[]         @relation("CreatedTasks")
+  assignedTasks Task[]         @relation("AssignedTasks")
+  notifications Notification[]
+  recipes       Recipe[]
+  babyFeedLogs  BabyFeedLog[]
+}
+
+model Project {
+  id         Int       @id @default(autoincrement())
+  name       String
+  emoji      String?
+  color      String?   @default("#6366f1")
+  isFavorite Boolean   @default(false)
+  isArchived Boolean   @default(false)
+  order      Int       @default(0)
+  parentId   Int?
+  parent     Project?  @relation("SubProjects", fields: [parentId], references: [id])
+  children   Project[] @relation("SubProjects")
+  userId     Int?
+  user       User?     @relation(fields: [userId], references: [id])
+  sections   Section[]
+  tasks      Task[]
+  favorites  Favorite[]
+  createdAt  DateTime  @default(now())
+}
+
+model Section {
+  id        Int      @id @default(autoincrement())
+  name      String
+  order     Int      @default(0)
+  projectId Int
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  tasks     Task[]
+  createdAt DateTime @default(now())
+}
+
+model Label {
+  id        Int         @id @default(autoincrement())
+  name      String
+  emoji     String?
+  color     String?     @default("#6366f1")
+  userId    Int?
+  user      User?       @relation(fields: [userId], references: [id])
+  tasks     TaskLabel[]
+  createdAt DateTime    @default(now())
+}
+
+model TaskLabel {
+  taskId  Int
+  labelId Int
+  task    Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  label   Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, labelId])
+}
+
+model Favorite {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  projectId Int?
+  project   Project? @relation(fields: [projectId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model SmartView {
+  id         Int      @id @default(autoincrement())
+  name       String
+  emoji      String?
+  filterJson Json
+  order      Int      @default(0)
+  isDefault  Boolean  @default(false)
+  userId     Int?
+  user       User?    @relation(fields: [userId], references: [id])
+  createdAt  DateTime @default(now())
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  type      String
+  message   String
+  taskId    Int?
+  task      Task?    @relation(fields: [taskId], references: [id])
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Recipe {
+  id          Int      @id @default(autoincrement())
+  title       String
+  sourceUrl   String?
+  ingredients String
+  steps       String?
+  servings    Int?
+  prepMins    Int?
+  tags        String[]
+  userId      Int?
+  user        User?    @relation(fields: [userId], references: [id])
+  createdAt   DateTime @default(now())
+}
+
+model BabyFeedLog {
+  id        Int      @id @default(autoincrement())
+  feedTime  DateTime
+  feedType  String
+  amount    Float?
+  unit      String?
+  notes     String?
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+}
+
 model Task {
-  id                Int       @id @default(autoincrement())
+  id                Int            @id @default(autoincrement())
   title             String
   notes             String?
-  status            String    @default("open")
+  status            String         @default("open")
   manualPriority    String?
   suggestedPriority String?
   priorityScore     Float?
   priorityReason    String?
   dueAt             DateTime?
-  isBlocked         Boolean   @default(false)
+  isBlocked         Boolean        @default(false)
   completedAt       DateTime?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  order             Int            @default(0)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  projectId         Int?
+  project           Project?       @relation(fields: [projectId], references: [id])
+  sectionId         Int?
+  section           Section?       @relation(fields: [sectionId], references: [id])
+  parentTaskId      Int?
+  parentTask        Task?          @relation("SubTasks", fields: [parentTaskId], references: [id])
+  subtasks          Task[]         @relation("SubTasks")
+  userId            Int?
+  user              User?          @relation("CreatedTasks", fields: [userId], references: [id])
+  assigneeId        Int?
+  assignee          User?          @relation("AssignedTasks", fields: [assigneeId], references: [id])
+  labels            TaskLabel[]
+  notifications     Notification[]
 }

@@ -6,40 +6,54 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const view = searchParams.get("view") || "inbox";
   const q = searchParams.get("q") || "";
+  const projectId = searchParams.get("projectId");
+  const sectionId = searchParams.get("sectionId");
+  const labelId = searchParams.get("labelId");
+  const parentTaskId = searchParams.get("parentTaskId");
 
   const where: Record<string, unknown> = {};
-  if (q) where.title = { contains: q };
+  if (q) where.title = { contains: q, mode: "insensitive" };
 
-  if (view === "inbox") {
-    where.status = "open";
-  } else if (view === "upcoming") {
-    where.status = "open";
-    where.dueAt = { not: null };
-  } else if (view === "today") {
-    where.status = "open";
-    where.isBlocked = false;
+  if (projectId) where.projectId = parseInt(projectId, 10);
+  if (sectionId) where.sectionId = parseInt(sectionId, 10);
+  if (labelId) where.labels = { some: { labelId: parseInt(labelId, 10) } };
+  if (parentTaskId) where.parentTaskId = parseInt(parentTaskId, 10);
+
+  if (!projectId && !sectionId && !labelId && !parentTaskId) {
+    if (view === "inbox") {
+      where.status = "open";
+    } else if (view === "upcoming") {
+      where.status = "open";
+      where.dueAt = { not: null };
+    } else if (view === "today") {
+      where.status = "open";
+      where.isBlocked = false;
+    }
   }
 
   let orderBy: Record<string, string>[] = [{ createdAt: "desc" }];
   if (view === "upcoming") orderBy = [{ dueAt: "asc" }];
   if (view === "today") orderBy = [{ priorityScore: "desc" }];
+  if (projectId || sectionId) orderBy = [{ order: "asc" }, { createdAt: "asc" }];
 
-  let tasks = await prisma.task.findMany({
+  const tasks = await prisma.task.findMany({
     where,
+    include: {
+      project: { select: { id: true, name: true, emoji: true, color: true } },
+      section: { select: { id: true, name: true } },
+      labels: { include: { label: true } },
+      subtasks: { select: { id: true, title: true, status: true } },
+    },
     orderBy,
-    take: view === "today" ? 10 : 100,
+    take: view === "today" ? 10 : 200,
   });
-
-  if (view === "today") {
-    tasks = tasks.sort((a, b) => (b.priorityScore ?? -999) - (a.priorityScore ?? -999));
-  }
 
   return NextResponse.json(tasks);
 }
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { title, notes, dueAt, manualPriority, isBlocked } = body;
+  const { title, notes, dueAt, manualPriority, isBlocked, projectId, sectionId, parentTaskId, labelIds } = body;
 
   if (!title || !title.trim()) {
     return NextResponse.json({ error: "Title is required" }, { status: 400 });
@@ -63,6 +77,17 @@ export async function POST(req: NextRequest) {
       suggestedPriority: suggestion.priority,
       priorityScore: suggestion.score,
       priorityReason: suggestion.reason,
+      projectId: projectId ? parseInt(projectId, 10) : null,
+      sectionId: sectionId ? parseInt(sectionId, 10) : null,
+      parentTaskId: parentTaskId ? parseInt(parentTaskId, 10) : null,
+      labels: labelIds?.length
+        ? { create: labelIds.map((id: number) => ({ labelId: id })) }
+        : undefined,
+    },
+    include: {
+      project: { select: { id: true, name: true, emoji: true } },
+      section: { select: { id: true, name: true } },
+      labels: { include: { label: true } },
     },
   });
 
