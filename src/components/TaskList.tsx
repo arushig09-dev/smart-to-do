@@ -168,40 +168,27 @@ function AddTaskInline({
     setText("");
   }
 
-  // ── Idle: hints are always on-screen ────────────────────────────────────
+  // ── Idle: show "+ Add task" + contextual example text only ─────────────
   if (!open) {
     return (
-      <div className="px-4 py-2 flex items-center flex-wrap gap-x-3 gap-y-1.5">
-        {/* "+ Add task" trigger */}
-        <button
-          onClick={expand}
-          className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors flex-shrink-0"
-        >
-          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
-            <path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-          </svg>
-          <span className="font-medium">{triggerLabel ?? "Add task"}</span>
-        </button>
-
-        {/* Hint chips — clicking any of them also opens the input */}
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {NLP_HINTS.map((h) => (
-            <button
-              key={h.label}
-              onClick={expand}
-              title={h.tip}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-stone-100 hover:bg-stone-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 text-[11px] transition-colors cursor-pointer"
-            >
-              <span>{h.icon}</span>
-              <span className="font-medium text-zinc-500 dark:text-zinc-400">{h.label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
+      <button
+        onClick={expand}
+        className="w-full flex items-center gap-2 px-4 py-2 text-sm transition-colors group text-left"
+      >
+        <svg width="13" height="13" viewBox="0 0 14 14" fill="none" className="flex-shrink-0 text-zinc-400 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors">
+          <path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+        </svg>
+        <span className="font-medium text-zinc-400 group-hover:text-indigo-500 dark:group-hover:text-indigo-400 transition-colors flex-shrink-0">
+          {triggerLabel ?? "Add task"}
+        </span>
+        <span className="text-zinc-300 dark:text-zinc-600 text-[12px] italic truncate group-hover:text-zinc-400 dark:group-hover:text-zinc-500 transition-colors ml-1">
+          e.g. "{example}"
+        </span>
+      </button>
     );
   }
 
-  // ── Active: full input + buttons ─────────────────────────────────────────
+  // ── Active: input + chips + buttons ─────────────────────────────────────
   return (
     <div className="px-4 py-3 border-t border-stone-100 dark:border-zinc-800">
       <input
@@ -217,7 +204,7 @@ function AddTaskInline({
         className="w-full text-sm px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500"
       />
 
-      {/* Hint chips (visible while typing as a reminder) */}
+      {/* NLP hint chips — visible once user has opened the input */}
       <div className="mt-2 flex flex-wrap items-center gap-1.5">
         <span className="text-[11px] text-zinc-400 mr-0.5">Type naturally:</span>
         {NLP_HINTS.map((h) => (
