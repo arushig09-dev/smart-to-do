@@ -1,16 +1,14 @@
 import { PrismaClient } from "@/generated/prisma/client";
-import { PrismaNeon } from "@prisma/adapter-neon";
-import { neonConfig } from "@neondatabase/serverless";
-import ws from "ws";
+import { withAccelerate } from "@prisma/extension-accelerate";
 
-// Required for Neon serverless in Node.js environments
-neonConfig.webSocketConstructor = ws;
-
-const globalForPrisma = globalThis as unknown as { prisma: PrismaClient };
+const globalForPrisma = globalThis as unknown as {
+  prisma: ReturnType<typeof createPrismaClient>;
+};
 
 function createPrismaClient() {
-  const adapter = new PrismaNeon({ connectionString: process.env.DATABASE_URL });
-  return new PrismaClient({ adapter });
+  return new PrismaClient({
+    accelerateUrl: process.env.DATABASE_URL!,
+  }).$extends(withAccelerate());
 }
 
 export const prisma = globalForPrisma.prisma || createPrismaClient();
