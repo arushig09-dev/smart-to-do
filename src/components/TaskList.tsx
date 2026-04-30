@@ -25,47 +25,86 @@ function smartSort(tasks: Task[]): Task[] {
 }
 
 // ─── Context-aware NLP examples ──────────────────────────────────────────────
+//
+// ORDER MATTERS — first match wins. Keep more-specific entries before
+// general-purpose ones to avoid false positives (e.g. "goals" must not
+// fire for "Career & Performance Goals"; "travel" must not fire for Admin).
 
 const CONTEXT_EXAMPLES: { match: string[]; example: string }[] = [
-  { match: ["strategy", "roadmap", "okr", "goals", "vision"], example: "Finalize Q3 OKR review with team by Friday P1" },
-  { match: ["deliverable", "spec", "shipped", "review", "hold"], example: "Ship onboarding redesign spec by Thursday P0" },
-  { match: ["sprint", "execution", "eng", "handoff", "bug", "triage"], example: "Fix checkout bug today P0 #urgent" },
-  { match: ["stakeholder", "alignment", "sync", "escalation", "follow"], example: "Follow up with design lead by tomorrow P1" },
-  { match: ["experiment", "data", "insight", "learning", "result"], example: "Analyze A/B test results by end of week P1" },
-  { match: ["growth", "course", "upskill", "learn", "reading list", "explore"], example: "Start System Design course this week P2" },
-  { match: ["career", "performance", "1:1", "goal", "win", "feedback"], example: "Prep 1:1 notes for Thursday P2" },
-  { match: ["culture", "social", "event", "shoutout", "coffee", "hiring"], example: "Send shoutout to Sarah for Q2 launch" },
-  { match: ["admin", "ops", "expense", "travel", "vendor", "meeting prep"], example: "Submit Q2 expense report by Friday P1" },
-  { match: ["grocery", "logistics", "online order", "errand", "home supply"], example: "Buy diapers and formula tomorrow" },
-  { match: ["baby", "parenting", "checkup", "gear", "development", "childcare"], example: "Schedule 6-month checkup next Tuesday P1" },
-  { match: ["health", "medical", "appointment", "prescription", "insurance"], example: "Book dentist appointment next week P1" },
-  { match: ["fitness", "wellness", "workout", "nutrition", "sleep", "self-care"], example: "30-min run before work tomorrow" },
-  { match: ["family", "social", "birthday", "gift", "playdate", "friend"], example: "Order birthday gift for mum by this Friday" },
-  { match: ["travel", "trip", "outing", "packing"], example: "Book hotel for Portland trip by next Thursday P1" },
-  { match: ["home", "house", "renovation", "repair", "contractor"], example: "Call plumber about kitchen leak tomorrow P0" },
-  { match: ["finance", "bill", "tax", "subscription", "purchase"], example: "Pay Q2 estimated taxes by Apr 15 P0" },
-  { match: ["book", "podcast", "currently reading", "on the list"], example: "Start Atomic Habits — aim to finish by month end" },
-  { match: ["hobby", "creative", "art", "music"], example: "Practice guitar for 20 mins this evening" },
-  { match: ["mental", "decide", "research", "delegate", "long-term"], example: "Research preschool options by end of month P2" },
-  { match: ["recipe", "meal", "cooking", "weekly menu", "baby feeding"], example: "Try chicken tikka recipe this Sunday" },
-  { match: ["inbox"], example: "Team sync with eng at 3pm today P1" },
-  { match: ["today"], example: "Review pull requests before 5pm P1" },
-  { match: ["upcoming"], example: "Book dentist appointment next week" },
+  // ── Work ──────────────────────────────────────────────────────────────────
+  // "goals"/"goal" intentionally omitted — they appear in Career sections too.
+  { match: ["strategy", "roadmap", "okr", "vision"],
+    example: "Finalize Q3 OKR review with team by Friday P1" },
+  { match: ["deliverable", "spec", "shipped", "review", "hold"],
+    example: "Ship onboarding redesign spec by Thursday P0" },
+  { match: ["sprint", "execution", "eng", "handoff", "bug", "triage"],
+    example: "Fix checkout bug today P0 #urgent" },
+  { match: ["stakeholder", "alignment", "sync", "escalation", "follow"],
+    example: "Follow up with design lead by tomorrow P1" },
+  // "learning" omitted — it would catch "Learning & Personal Growth"
+  { match: ["experiment", "data", "insight", "result"],
+    example: "Analyze A/B test results by end of week P1" },
+  { match: ["growth", "course", "upskill", "learn", "reading list", "explore"],
+    example: "Start System Design course this week P2" },
+  // "goal" omitted — caught below by the mental-load / career entry
+  { match: ["career", "performance", "1:1", "feedback", "win"],
+    example: "Prep 1:1 notes for Thursday P2" },
+  // "social" and "event" omitted — both appear in personal Family & Social
+  { match: ["culture", "shoutout", "hiring", "coffee chats"],
+    example: "Send shoutout to Sarah for Q2 launch" },
+  // "travel" omitted — it's in the dedicated travel entry below
+  { match: ["admin", "ops", "expense", "vendor", "meeting prep"],
+    example: "Submit Q2 expense report by Friday P1" },
+
+  // ── Personal ──────────────────────────────────────────────────────────────
+  { match: ["grocery", "logistics", "online order", "errand", "home supply"],
+    example: "Restock diapers, formula & wipes tomorrow" },
+  { match: ["baby", "parenting", "checkup", "gear", "childcare"],
+    example: "Schedule 6-month checkup next Tuesday P1" },
+  // "insurance" omitted — it belongs to finance context below
+  { match: ["health", "medical", "appointment", "prescription"],
+    example: "Book dentist appointment next week P1" },
+  { match: ["fitness", "wellness", "workout", "nutrition", "sleep", "self-care"],
+    example: "30-min run before work tomorrow" },
+  // "social" and "event" omitted to avoid work-culture false positives
+  { match: ["family", "birthday", "gift", "playdate", "friend"],
+    example: "Order birthday gift for mum by this Friday" },
+  { match: ["travel", "trip", "outing", "packing", "vacation"],
+    example: "Book hotel for Portland trip by next Thursday P1" },
+  { match: ["home", "house", "renovation", "repair", "contractor"],
+    example: "Call plumber about kitchen leak tomorrow P0" },
+  // "insurance" added here (finance-level)
+  { match: ["finance", "bill", "tax", "subscription", "insurance", "budget"],
+    example: "Pay Q2 estimated taxes by Apr 15 P0" },
+  { match: ["book", "podcast", "reading", "on the list"],
+    example: "Start Atomic Habits — aim to finish by month end" },
+  { match: ["hobby", "creative", "art", "music"],
+    example: "Practice guitar for 20 mins this evening" },
+  // "long-term" and "goals" live here to catch Career + Mental Load sections
+  { match: ["mental", "decide", "delegate", "long-term", "goal"],
+    example: "Research preschool options by end of month P2" },
+  { match: ["recipe", "meal", "cooking", "menu", "feeding"],
+    example: "Try chicken tikka recipe this Sunday" },
+
+  // ── Smart views ───────────────────────────────────────────────────────────
+  { match: ["inbox"],                                  example: "Team sync with eng at 3pm today P1" },
+  { match: ["today"],                                  example: "Review pull requests before 5pm P1" },
+  { match: ["upcoming"],                               example: "Book dentist appointment next week" },
   { match: ["due this week", "due next week", "due in 30"], example: "Submit report by Friday P1" },
-  { match: ["high priority"], example: "Fix critical bug in prod today P0" },
-  // Section-name-only fallbacks for common section patterns
-  { match: ["this week", "in progress", "active"], example: "Finish draft spec and share for review P1" },
-  { match: ["next week", "backlog", "later"], example: "Add dashboard export feature — start next sprint P2" },
-  { match: ["blocked", "waiting", "needs input"], example: "Unblock API design review with backend lead P0" },
-  { match: ["done", "completed", "shipped"], example: "Document retro learnings from last sprint" },
+  { match: ["high priority"],                          example: "Fix critical bug in prod today P0" },
+
+  // ── Generic section-name fallbacks ────────────────────────────────────────
+  { match: ["this week", "in progress", "active"],     example: "Finish draft spec and share for review P1" },
+  { match: ["next week", "backlog", "later"],           example: "Add dashboard export feature — start next sprint P2" },
+  { match: ["blocked", "waiting", "needs input"],      example: "Unblock API design review with backend lead P0" },
+  { match: ["done", "completed"],                       example: "Document retro learnings from last sprint" },
 ];
 
-// Broad work-context keywords — if any appear in the combined project+section label,
-// fall back to a work-appropriate default rather than a grocery example.
+// Broad work-context detector for the last-resort fallback.
 const WORK_CONTEXT_KEYWORDS = [
   "work", "sprint", "execution", "strategy", "roadmap", "product", "eng", "design",
-  "launch", "project", "team", "stakeholder", "okr", "feature", "milestone", "q1",
-  "q2", "q3", "q4", "planning", "review", "meeting", "sync", "leadership",
+  "launch", "stakeholder", "okr", "feature", "milestone", "q1", "q2", "q3", "q4",
+  "planning", "meeting", "sync", "leadership", "deliverable", "spec",
 ];
 
 function getContextExample(context: string): string {
@@ -73,7 +112,6 @@ function getContextExample(context: string): string {
   for (const { match, example } of CONTEXT_EXAMPLES) {
     if (match.some((kw) => lower.includes(kw))) return example;
   }
-  // Generic fallback: pick work or personal flavour based on context keywords
   const isWorkContext = WORK_CONTEXT_KEYWORDS.some((kw) => lower.includes(kw));
   return isWorkContext
     ? "Write PRD section on notification system by Thursday P1"
@@ -83,12 +121,16 @@ function getContextExample(context: string): string {
 // ─── NLP hint chips ──────────────────────────────────────────────────────────
 
 const NLP_HINTS = [
-  { icon: "📅", label: "date", tip: "tomorrow · next week · by Friday" },
-  { icon: "🔴", label: "P0 / P1 / P2", tip: "priority level" },
-  { icon: "🚫", label: "blocked", tip: "marks as waiting" },
+  { icon: "📅", label: "date",       tip: "tomorrow · next week · by Friday" },
+  { icon: "🔴", label: "P0 / P1 / P2", tip: "sets priority" },
+  { icon: "🚫", label: "blocked",    tip: "marks task as waiting" },
 ];
 
 // ─── AddTaskInline ────────────────────────────────────────────────────────────
+//
+// Idle  → hint chips + faint "+ Add" label always visible, no input shown.
+// Active → full input with contextual placeholder + Add / Cancel buttons.
+// Clicking a chip or the "+" button both expand to active state.
 
 function AddTaskInline({
   onAdd,
@@ -102,10 +144,14 @@ function AddTaskInline({
   const { theme } = useTheme();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
-  const [focused, setFocused] = useState(false);
   const ref = useRef<HTMLInputElement>(null);
 
   const example = getContextExample(contextLabel);
+
+  function expand() {
+    setOpen(true);
+    setTimeout(() => ref.current?.focus(), 50);
+  }
 
   function submit() {
     const t = text.trim();
@@ -113,27 +159,48 @@ function AddTaskInline({
       onAdd(t);
       setText("");
       setOpen(false);
-      setFocused(false);
     }
   }
 
+  function cancel() {
+    setOpen(false);
+    setText("");
+  }
+
+  // ── Idle: hints are always on-screen ────────────────────────────────────
   if (!open) {
     return (
-      <button
-        onClick={() => {
-          setOpen(true);
-          setTimeout(() => ref.current?.focus(), 50);
-        }}
-        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-zinc-400 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors group"
-      >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0">
-          <path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-        </svg>
-        <span>{triggerLabel ?? "Add task"}</span>
-      </button>
+      <div className="px-4 py-2 flex items-center flex-wrap gap-x-3 gap-y-1.5">
+        {/* "+ Add task" trigger */}
+        <button
+          onClick={expand}
+          className="flex items-center gap-1.5 text-sm text-zinc-400 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors flex-shrink-0"
+        >
+          <svg width="13" height="13" viewBox="0 0 14 14" fill="none">
+            <path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+          </svg>
+          <span className="font-medium">{triggerLabel ?? "Add task"}</span>
+        </button>
+
+        {/* Hint chips — clicking any of them also opens the input */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {NLP_HINTS.map((h) => (
+            <button
+              key={h.label}
+              onClick={expand}
+              title={h.tip}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-stone-100 hover:bg-stone-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 text-[11px] transition-colors cursor-pointer"
+            >
+              <span>{h.icon}</span>
+              <span className="font-medium text-zinc-500 dark:text-zinc-400">{h.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
     );
   }
 
+  // ── Active: full input + buttons ─────────────────────────────────────────
   return (
     <div className="px-4 py-3 border-t border-stone-100 dark:border-zinc-800">
       <input
@@ -142,29 +209,27 @@ function AddTaskInline({
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") submit();
-          if (e.key === "Escape") { setOpen(false); setText(""); setFocused(false); }
+          if (e.key === "Escape") cancel();
         }}
-        onFocus={() => setFocused(true)}
-        onBlur={() => { if (!text.trim()) { setOpen(false); setFocused(false); } }}
+        onBlur={() => { if (!text.trim()) cancel(); }}
         placeholder={`e.g. "${example}"`}
         className="w-full text-sm px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500"
       />
 
-      {/* NLP hint chips — shown when input is focused */}
-      {focused && (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] text-zinc-400 mr-0.5">Type naturally:</span>
-          {NLP_HINTS.map((h) => (
-            <span
-              key={h.label}
-              title={h.tip}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-stone-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 text-[11px] cursor-default"
-            >
-              {h.icon} <span className="font-medium text-zinc-600 dark:text-zinc-300">{h.label}</span>
-            </span>
-          ))}
-        </div>
-      )}
+      {/* Hint chips (visible while typing as a reminder) */}
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        <span className="text-[11px] text-zinc-400 mr-0.5">Type naturally:</span>
+        {NLP_HINTS.map((h) => (
+          <span
+            key={h.label}
+            title={h.tip}
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-stone-100 dark:bg-zinc-700 text-[11px] cursor-default"
+          >
+            <span>{h.icon}</span>
+            <span className="font-medium text-zinc-600 dark:text-zinc-300">{h.label}</span>
+          </span>
+        ))}
+      </div>
 
       {/* Action buttons */}
       <div className="mt-2 flex gap-2">
@@ -175,7 +240,7 @@ function AddTaskInline({
           Add task
         </button>
         <button
-          onClick={() => { setOpen(false); setText(""); setFocused(false); }}
+          onClick={cancel}
           className="px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition"
         >
           Cancel
