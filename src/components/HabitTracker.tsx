@@ -334,36 +334,42 @@ export default function HabitTracker() {
                 </button>
               )}
 
-              {/* ── Quick-start chips with goal hints ── */}
-              {habits.length === 0 && !adding && (
-                <div className="mt-6">
-                  <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">
-                    Quick-start with popular habits
-                  </p>
-                  <div className="flex flex-col gap-2">
-                    {DEFAULT_HABITS.map((h) => (
-                      <button
-                        key={h.name}
-                        onClick={() => addDefault(h)}
-                        className="flex items-start gap-3 px-3 py-2.5 text-sm rounded-xl border border-stone-200 dark:border-zinc-700 hover:bg-stone-50 dark:hover:bg-zinc-800 transition text-left group"
-                      >
-                        <span className="text-lg leading-none mt-0.5 flex-shrink-0">{h.emoji}</span>
-                        <div>
-                          <span className="font-medium text-zinc-700 dark:text-zinc-300 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 transition">
-                            {h.name}
+              {/* ── Suggested habits (defaults not yet tracked) ── */}
+              {(() => {
+                const suggested = DEFAULT_HABITS.filter(
+                  (d) => !habits.some((h) => h.name.toLowerCase() === d.name.toLowerCase())
+                );
+                if (suggested.length === 0 || adding) return null;
+                return (
+                  <div className="mt-5">
+                    <p className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">
+                      Suggested habits
+                    </p>
+                    <div className="flex flex-col gap-2">
+                      {suggested.map((h) => (
+                        <button
+                          key={h.name}
+                          onClick={() => addDefault(h)}
+                          className="flex items-start gap-3 px-3 py-2.5 text-sm rounded-xl border border-stone-200 dark:border-zinc-700 hover:bg-stone-50 dark:hover:bg-zinc-800 transition text-left group"
+                        >
+                          <span className="text-lg leading-none mt-0.5 flex-shrink-0">{h.emoji}</span>
+                          <div>
+                            <span className="font-medium text-zinc-700 dark:text-zinc-300 group-hover:text-zinc-900 dark:group-hover:text-zinc-100 transition">
+                              {h.name}
+                            </span>
+                            {h.hint && (
+                              <p className="text-[11px] text-zinc-400 mt-0.5">{h.hint}</p>
+                            )}
+                          </div>
+                          <span className="ml-auto text-zinc-300 dark:text-zinc-600 group-hover:text-emerald-500 transition text-xs mt-0.5 flex-shrink-0">
+                            + Add
                           </span>
-                          {h.hint && (
-                            <p className="text-[11px] text-zinc-400 mt-0.5">{h.hint}</p>
-                          )}
-                        </div>
-                        <span className="ml-auto text-zinc-300 dark:text-zinc-600 group-hover:text-zinc-500 transition text-xs mt-0.5 flex-shrink-0">
-                          + Add
-                        </span>
-                      </button>
-                    ))}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           </>
         )}
