@@ -157,7 +157,7 @@ export default function HabitTracker() {
       <div className="px-6 py-5 border-b border-stone-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex-shrink-0">
         <div className="flex items-baseline justify-between">
           <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2.5">
-            <span>🔥</span>
+            <span>🎯</span>
             <span>Your Habit Tracker</span>
           </h1>
           {habits.length > 0 && (

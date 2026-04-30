@@ -26,34 +26,149 @@ function smartSort(tasks: Task[]): Task[] {
 
 // ─── Context-aware NLP examples ──────────────────────────────────────────────
 //
-// ORDER MATTERS — first match wins. Keep more-specific entries before
-// general-purpose ones to avoid false positives (e.g. "goals" must not
-// fire for "Career & Performance Goals"; "travel" must not fire for Admin).
+// TWO-TIER STRUCTURE — section-specific entries come FIRST so they always
+// win over broader project-level entries (first match wins).
+// Context string passed in: "${projectName} ${sectionName}" (lowercased).
 
 const CONTEXT_EXAMPLES: { match: string[]; example: string }[] = [
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // TIER 1 — Section-specific entries (distinct sections needing unique hints)
+  // ══════════════════════════════════════════════════════════════════════════
+
+  // ── Strategy & Roadmap sections ───────────────────────────────────────────
+  { match: ["vision & goals"],      example: "Define 2026 product vision and north star metric by Q2 P0" },
+  { match: ["quarterly okr"],       example: "Finalize Q3 OKRs with team — first draft by Wednesday P1" },
+  { match: ["feature backlog"],     example: "Add dark mode to backlog — low effort, high demand P2" },
+  { match: ["deprioritized"],       example: "Move search filters to deprioritized — revisit Q4" },
+
+  // ── Execution & Sprints sections ──────────────────────────────────────────
+  { match: ["eng handoffs", "eng handoff"], example: "Hand off notification service spec to backend eng by EOD P1" },
+  { match: ["bug triage"],          example: "Triage P0 crash on checkout — root cause by tomorrow P0" },
+
+  // ── Stakeholder & Alignment sections ─────────────────────────────────────
+  { match: ["follow-ups needed"],   example: "Follow up with design lead on nav redesign by tomorrow P1" },
+  { match: ["waiting on others"],   example: "Blocked on legal review of ToS update — nudge by Thursday P1" },
+  { match: ["to sync"],             example: "Sync with data eng on pipeline migration timeline P1" },
+  { match: ["escalations"],         example: "Escalate delayed API delivery to VP Eng — resolve by Friday P0" },
+
+  // ── Data & Insights / Experiments sections ────────────────────────────────
+  { match: ["results analyzed"],    example: "Write findings doc for checkout A/B test — due Friday P1" },
+  { match: ["experiment learnings"], example: "Document learnings from notification XP for team wiki P2" },
+  { match: ["experiment planning"], example: "Define success metrics for checkout A/B test by Wednesday P1" },
+
+  // ── Growth & Upskilling sections ──────────────────────────────────────────
+  { match: ["currently learning"],  example: "Complete System Design module 3 — finish by Sunday P2" },
+  { match: ["to explore"],          example: "Explore LLM fine-tuning tools for upcoming feature spike P2" },
+
+  // ── Career & Performance sections (all distinct — must come before "career") ─
+  { match: ["performance goals", "career & performance goals"],
+    example: "Target L8 promotion by July 2026 cycle — finalize self-review P0" },
+  { match: ["wins & impact", "impact log"],
+    example: "Drove 12% engagement lift by launching search re-ranking feature" },
+  { match: ["1:1 prep"],            example: "Prep Q3 talking points: growth trajectory + promo timeline P1" },
+  { match: ["feedback to give", "feedback to get"],
+    example: "Share structured promo doc feedback for Alex by Friday P1" },
+
+  // ── Culture & Social sections ─────────────────────────────────────────────
+  { match: ["team events"],         example: "Organize Q2 team offsite — book venue by April 20 P1" },
+  { match: ["shoutouts"],           example: "Give shoutout to Alex for shipping feeds re-ranking on time" },
+  { match: ["coffee chats"],        example: "Set up coffee chat with new PM Maria this week" },
+
+  // ── Admin & Ops sections ──────────────────────────────────────────────────
+  { match: ["recurring"],           example: "Submit weekly status update to leadership by Friday P2" },
+  { match: ["vendor requests"],     example: "Follow up on Figma renewal quote — due by EOQ P1" },
+  { match: ["meeting prep"],        example: "Prep agenda for Q2 planning meeting by Monday P1" },
+
+  // ── Daily Logistics sections ──────────────────────────────────────────────
+  { match: ["groceries"],           example: "Pick up diapers, formula, and oat milk tomorrow morning" },
+  { match: ["online orders & returns", "online orders"],
+    example: "Return Amazon package by Thursday — print label first" },
+  { match: ["home supplies"],       example: "Reorder paper towels, dish soap, and trash bags" },
+  { match: ["errands"],             example: "Post office + pick up prescription tomorrow morning" },
+
+  // ── Baby & Parenting sections ─────────────────────────────────────────────
+  { match: ["gear & supplies"],     example: "Order convertible car seat before road trip next month P1" },
+  { match: ["development & activities"],
+    example: "Research Montessori playgroups near home by weekend P2" },
+  { match: ["childcare & care team", "care team"],
+    example: "Interview nanny candidate on Thursday at 2pm P0" },
+
+  // ── Health & Medical sections ─────────────────────────────────────────────
+  { match: ["my appointments"],     example: "Book dentist appointment for next week P1" },
+  { match: ["baby appointments"],   example: "Schedule 6-month well-baby visit with Dr. Kim by Tuesday P1" },
+  { match: ["prescriptions & refills", "refills"],
+    example: "Refill prenatal vitamins prescription before Thursday" },
+  { match: ["insurance & claims"],  example: "Submit insurance claim for ER visit — deadline April 30 P0" },
+
+  // ── Fitness & Wellness sections ───────────────────────────────────────────
+  { match: ["nutrition & meal prep"], example: "Meal prep overnight oats and salads for the week Sunday" },
+  { match: ["sleep & recovery"],    example: "Set up white noise machine and blackout curtains this week P2" },
+  { match: ["self-care"],           example: "Book prenatal massage for next Saturday P2" },
+
+  // ── Family & Social sections ──────────────────────────────────────────────
+  { match: ["family events"],       example: "Plan mum's birthday dinner — book restaurant by Friday" },
+  { match: ["birthdays & gifts"],   example: "Order birthday gift for mum by this Friday" },
+  { match: ["playdates"],           example: "Arrange playdate with Emma and baby Lily for Saturday P2" },
+  { match: ["friends catch-ups", "catch-ups"],
+    example: "Text Sarah to schedule brunch catch-up this month" },
+
+  // ── Travel & Outings sections ─────────────────────────────────────────────
+  { match: ["trip planning"],       example: "Research kid-friendly restaurants in Portland for August trip P2" },
+  { match: ["day outings"],         example: "Plan family picnic at the park this Sunday" },
+  { match: ["packing lists"],       example: "Pack hospital bag — go-bag checklist by 36 weeks P0" },
+
+  // ── Finance & Admin sections ──────────────────────────────────────────────
+  { match: ["bills & subscriptions"], example: "Review and cancel unused subscriptions — save $50/mo P2" },
+  { match: ["taxes & documents"],   example: "Gather W2 + childcare receipts for tax filing by April 10 P0" },
+  { match: ["big purchases"],       example: "Research convertible car seat — buy before August trip P2" },
+
+  // ── Mental Load sections ──────────────────────────────────────────────────
+  { match: ["things to decide"],    example: "Decide on preschool enrollment — application deadline March 15 P0" },
+  { match: ["research needed"],     example: "Research sleep training methods — summarize options by weekend P2" },
+  { match: ["delegatable"],         example: "Ask partner to call pediatrician to book vaccine appointment" },
+  { match: ["long-term goals"],     example: "Return to work full-time by baby's first birthday — plan transition P1" },
+
+  // ── Meal Planning sections ────────────────────────────────────────────────
+  { match: ["quick & easy"],        example: "Try 15-min sheet pan salmon recipe this Tuesday" },
+  { match: ["weekend cooking"],     example: "Make big batch of pasta sauce and freeze Sunday" },
+  { match: ["baby-friendly"],       example: "Puree sweet potato and peas for baby's first solids this week" },
+  { match: ["meal prep tasks"],     example: "Chop veggies and prep grain bowls for Monday–Wednesday" },
+  { match: ["weekly menu"],         example: "Plan this week's dinners — grocery order by Sunday 6pm" },
+  { match: ["today's log", "feeding schedule"],
+    example: "Log morning nursing session — 7:30am, 15 min each side" },
+  { match: ["introducing solids"],  example: "Introduce mashed avocado this week — watch for reactions" },
+
+  // ── Learning & Personal Growth sub-project sections ───────────────────────
+  { match: ["currently reading", "currently listening"],
+    example: "Finish 'Atomic Habits' by end of month — 20 pages/day" },
+  { match: ["on the list"],         example: "Add 'Designing Data-Intensive Applications' to reading list" },
+  { match: ["finished this year"],  example: "Mark 'Essentialism' as done — write 3 key takeaways" },
+  { match: ["want to try"],         example: "Try beginner pottery class — find workshops this month P2" },
+  { match: ["on pause"],            example: "Resume guitar practice after parental leave — restart in June P2" },
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // TIER 2 — Project-level (catches remaining sections not covered above)
+  // ══════════════════════════════════════════════════════════════════════════
+
   // ── Work ──────────────────────────────────────────────────────────────────
-  // "goals"/"goal" intentionally omitted — they appear in Career sections too.
   { match: ["strategy", "roadmap", "okr", "vision"],
     example: "Finalize Q3 OKR review with team by Friday P1" },
   { match: ["deliverable", "spec", "shipped", "review", "hold"],
     example: "Ship onboarding redesign spec by Thursday P0" },
   { match: ["sprint", "execution", "eng", "handoff", "bug", "triage"],
     example: "Fix checkout bug today P0 #urgent" },
-  { match: ["stakeholder", "alignment", "sync", "escalation", "follow"],
+  { match: ["stakeholder", "alignment", "escalation", "follow"],
     example: "Follow up with design lead by tomorrow P1" },
-  // "learning" omitted — it would catch "Learning & Personal Growth"
   { match: ["experiment", "data", "insight", "result"],
     example: "Analyze A/B test results by end of week P1" },
   { match: ["growth", "course", "upskill", "learn", "reading list", "explore"],
     example: "Start System Design course this week P2" },
-  // "goal" omitted — caught below by the mental-load / career entry
   { match: ["career", "performance", "1:1", "feedback", "win"],
     example: "Prep 1:1 notes for Thursday P2" },
-  // "social" and "event" omitted — both appear in personal Family & Social
-  { match: ["culture", "shoutout", "hiring", "coffee chats"],
-    example: "Send shoutout to Sarah for Q2 launch" },
-  // "travel" omitted — it's in the dedicated travel entry below
-  { match: ["admin", "ops", "expense", "vendor", "meeting prep"],
+  { match: ["culture", "shoutout", "hiring"],
+    example: "Send shoutout to Sarah for shipping feeds re-ranking P1" },
+  { match: ["admin", "ops", "expense", "vendor"],
     example: "Submit Q2 expense report by Friday P1" },
 
   // ── Personal ──────────────────────────────────────────────────────────────
@@ -61,44 +176,41 @@ const CONTEXT_EXAMPLES: { match: string[]; example: string }[] = [
     example: "Restock diapers, formula & wipes tomorrow" },
   { match: ["baby", "parenting", "checkup", "gear", "childcare"],
     example: "Schedule 6-month checkup next Tuesday P1" },
-  // "insurance" omitted — it belongs to finance context below
   { match: ["health", "medical", "appointment", "prescription"],
     example: "Book dentist appointment next week P1" },
-  { match: ["fitness", "wellness", "workout", "nutrition", "sleep", "self-care"],
+  { match: ["fitness", "wellness", "workout", "nutrition", "sleep"],
     example: "30-min run before work tomorrow" },
-  // "social" and "event" omitted to avoid work-culture false positives
   { match: ["family", "birthday", "gift", "playdate", "friend"],
     example: "Order birthday gift for mum by this Friday" },
   { match: ["travel", "trip", "outing", "packing", "vacation"],
     example: "Book hotel for Portland trip by next Thursday P1" },
   { match: ["home", "house", "renovation", "repair", "contractor"],
     example: "Call plumber about kitchen leak tomorrow P0" },
-  // "insurance" added here (finance-level)
   { match: ["finance", "bill", "tax", "subscription", "insurance", "budget"],
     example: "Pay Q2 estimated taxes by Apr 15 P0" },
-  { match: ["book", "podcast", "reading", "on the list"],
+  { match: ["book", "podcast", "reading"],
     example: "Start Atomic Habits — aim to finish by month end" },
   { match: ["hobby", "creative", "art", "music"],
     example: "Practice guitar for 20 mins this evening" },
-  // "long-term" and "goals" live here to catch Career + Mental Load sections
   { match: ["mental", "decide", "delegate", "long-term", "goal"],
     example: "Research preschool options by end of month P2" },
   { match: ["recipe", "meal", "cooking", "menu", "feeding"],
     example: "Try chicken tikka recipe this Sunday" },
 
-  // ── Smart views / flat views ───────────────────────────────────────────────
-  { match: ["your to-do", "to-do list", "todo"],  example: "Review PRD draft and send to team by Thursday P1" },
-  { match: ["inbox"],                                  example: "Team sync with eng at 3pm today P1" },
-  { match: ["today"],                                  example: "Review pull requests before 5pm P1" },
-  { match: ["upcoming"],                               example: "Book dentist appointment next week" },
+  // ── Smart / flat views ────────────────────────────────────────────────────
+  { match: ["your to-do", "to-do list", "todo"],
+    example: "Review PRD draft and send to team by Thursday P1" },
+  { match: ["inbox"],   example: "Team sync with eng at 3pm today P1" },
+  { match: ["today"],   example: "Review pull requests before 5pm P1" },
+  { match: ["upcoming"], example: "Book dentist appointment next week" },
   { match: ["due this week", "due next week", "due in 30"], example: "Submit report by Friday P1" },
-  { match: ["high priority"],                          example: "Fix critical bug in prod today P0" },
+  { match: ["high priority"], example: "Fix critical bug in prod today P0" },
 
   // ── Generic section-name fallbacks ────────────────────────────────────────
-  { match: ["this week", "in progress", "active"],     example: "Finish draft spec and share for review P1" },
-  { match: ["next week", "backlog", "later"],           example: "Add dashboard export feature — start next sprint P2" },
-  { match: ["blocked", "waiting", "needs input"],      example: "Unblock API design review with backend lead P0" },
-  { match: ["done", "completed"],                       example: "Document retro learnings from last sprint" },
+  { match: ["this week", "in progress", "active"], example: "Finish draft spec and share for review P1" },
+  { match: ["next week", "backlog", "later"],       example: "Add dashboard export feature — start next sprint P2" },
+  { match: ["blocked", "waiting", "needs input"],  example: "Unblock API design review with backend lead P0" },
+  { match: ["done", "completed"],                   example: "Document retro learnings from last sprint" },
 ];
 
 // Broad work-context detector for the last-resort fallback.

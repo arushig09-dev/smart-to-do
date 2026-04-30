@@ -157,7 +157,7 @@ export default function Sidebar({ activeView, onViewChange }: { activeView: Acti
         <div>
           <SectionLabel label="Views" />
           <NavBtn label="Your To-do List"    emoji="✅" view={{ type: "todo" }} />
-          <NavBtn label="Your Habit Tracker" emoji="🔥" view={{ type: "habits" }} />
+          <NavBtn label="Your Habit Tracker" emoji="🎯" view={{ type: "habits" }} />
         </div>
 
         {/* Favorites / Smart views */}
