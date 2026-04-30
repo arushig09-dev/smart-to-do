@@ -2,10 +2,10 @@
 
 import type { Task } from "@/types";
 
-const PRIORITY_CONFIG: Record<string, { bg: string; label: string }> = {
-  P0: { bg: "bg-red-500", label: "P0" },
-  P1: { bg: "bg-amber-400", label: "P1" },
-  P2: { bg: "bg-blue-400", label: "P2" },
+const PRIORITY_CONFIG: Record<string, { bg: string; label: string; stripe: string }> = {
+  P0: { bg: "bg-red-500", label: "P0", stripe: "border-l-2 border-red-500" },
+  P1: { bg: "bg-amber-400", label: "P1", stripe: "border-l-2 border-amber-400" },
+  P2: { bg: "bg-blue-400", label: "P2", stripe: "border-l-2 border-blue-400" },
 };
 
 function relativeDate(d: string): string {
@@ -46,6 +46,8 @@ export default function TaskRow({
     <div
       onClick={onSelect}
       className={`group flex items-start gap-3 px-4 py-2.5 cursor-pointer transition-colors border-b border-stone-100 dark:border-zinc-800 last:border-0 ${
+        pConfig?.stripe ?? "border-l-2 border-transparent"
+      } ${
         isSelected
           ? "bg-indigo-50 dark:bg-indigo-900/20"
           : "hover:bg-stone-50 dark:hover:bg-zinc-800/50"

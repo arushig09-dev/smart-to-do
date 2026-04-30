@@ -4,16 +4,70 @@ import { useState, useRef } from "react";
 import type { Task, Section, ActiveView } from "@/types";
 import TaskRow from "./TaskRow";
 
+// ─── Context-aware NLP examples ──────────────────────────────────────────────
+
+const CONTEXT_EXAMPLES: { match: string[]; example: string }[] = [
+  { match: ["strategy", "roadmap", "okr", "goals", "vision"], example: "Finalize Q3 OKR review with team by Friday P1" },
+  { match: ["deliverable", "spec", "shipped", "review", "hold"], example: "Ship onboarding redesign spec by Thursday P0" },
+  { match: ["sprint", "execution", "eng", "handoff", "bug", "triage"], example: "Fix checkout bug today P0 #urgent" },
+  { match: ["stakeholder", "alignment", "sync", "escalation", "follow"], example: "Follow up with design lead by tomorrow P1" },
+  { match: ["experiment", "data", "insight", "learning", "result"], example: "Analyze A/B test results by end of week P1" },
+  { match: ["growth", "course", "upskill", "learn", "reading list", "explore"], example: "Start System Design course this week P2" },
+  { match: ["career", "performance", "1:1", "goal", "win", "feedback"], example: "Prep 1:1 notes for Thursday P2" },
+  { match: ["culture", "social", "event", "shoutout", "coffee", "hiring"], example: "Send shoutout to Sarah for Q2 launch" },
+  { match: ["admin", "ops", "expense", "travel", "vendor", "meeting prep"], example: "Submit Q2 expense report by Friday P1" },
+  { match: ["grocery", "logistics", "online order", "errand", "home supply"], example: "Buy diapers and formula tomorrow" },
+  { match: ["baby", "parenting", "checkup", "gear", "development", "childcare"], example: "Schedule 6-month checkup next Tuesday P1" },
+  { match: ["health", "medical", "appointment", "prescription", "insurance"], example: "Book dentist appointment next week P1" },
+  { match: ["fitness", "wellness", "workout", "nutrition", "sleep", "self-care"], example: "30-min run before work tomorrow" },
+  { match: ["family", "social", "birthday", "gift", "playdate", "friend"], example: "Order birthday gift for mum by this Friday" },
+  { match: ["travel", "trip", "outing", "packing"], example: "Book hotel for Portland trip by next Thursday P1" },
+  { match: ["home", "house", "renovation", "repair", "contractor"], example: "Call plumber about kitchen leak tomorrow P0" },
+  { match: ["finance", "bill", "tax", "subscription", "purchase"], example: "Pay Q2 estimated taxes by Apr 15 P0" },
+  { match: ["book", "podcast", "currently reading", "on the list"], example: "Start Atomic Habits — aim to finish by month end" },
+  { match: ["hobby", "creative", "art", "music"], example: "Practice guitar for 20 mins this evening" },
+  { match: ["mental", "decide", "research", "delegate", "long-term"], example: "Research preschool options by end of month P2" },
+  { match: ["recipe", "meal", "cooking", "weekly menu", "baby feeding"], example: "Try chicken tikka recipe this Sunday" },
+  { match: ["inbox"], example: "Team sync with eng at 3pm today P1" },
+  { match: ["today"], example: "Review pull requests before 5pm P1" },
+  { match: ["upcoming"], example: "Book dentist appointment next week" },
+  { match: ["due this week", "due next week", "due in 30"], example: "Submit report by Friday P1" },
+  { match: ["high priority"], example: "Fix critical bug in prod today P0" },
+];
+
+function getContextExample(context: string): string {
+  const lower = context.toLowerCase();
+  for (const { match, example } of CONTEXT_EXAMPLES) {
+    if (match.some((kw) => lower.includes(kw))) return example;
+  }
+  return "Buy milk tomorrow P2  ·  Ship feature by Friday P0";
+}
+
+// ─── NLP hint chips ──────────────────────────────────────────────────────────
+
+const NLP_HINTS = [
+  { icon: "📅", label: "date", tip: "tomorrow · next week · by Friday" },
+  { icon: "🔴", label: "P0 / P1 / P2", tip: "priority level" },
+  { icon: "🚫", label: "blocked", tip: "marks as waiting" },
+];
+
+// ─── AddTaskInline ────────────────────────────────────────────────────────────
+
 function AddTaskInline({
   onAdd,
-  placeholder,
+  contextLabel,
+  triggerLabel,
 }: {
   onAdd: (title: string) => void;
-  placeholder?: string;
+  contextLabel: string;
+  triggerLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
+  const [focused, setFocused] = useState(false);
   const ref = useRef<HTMLInputElement>(null);
+
+  const example = getContextExample(contextLabel);
 
   function submit() {
     const t = text.trim();
@@ -21,6 +75,7 @@ function AddTaskInline({
       onAdd(t);
       setText("");
       setOpen(false);
+      setFocused(false);
     }
   }
 
@@ -31,66 +86,68 @@ function AddTaskInline({
           setOpen(true);
           setTimeout(() => ref.current?.focus(), 50);
         }}
-        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition-colors group"
+        className="w-full flex items-center gap-2 px-4 py-2 text-sm text-zinc-400 hover:text-indigo-500 dark:hover:text-indigo-400 transition-colors group"
       >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 14 14"
-          fill="none"
-          className="flex-shrink-0"
-        >
-          <path
-            d="M7 2v10M2 7h10"
-            stroke="currentColor"
-            strokeWidth="1.5"
-            strokeLinecap="round"
-          />
+        <svg width="14" height="14" viewBox="0 0 14 14" fill="none" className="flex-shrink-0">
+          <path d="M7 2v10M2 7h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         </svg>
-        <span>{placeholder ?? "Add task"}</span>
+        <span>{triggerLabel ?? "Add task"}</span>
       </button>
     );
   }
 
   return (
-    <div className="px-4 py-2 flex gap-2 border-t border-stone-100 dark:border-zinc-800">
+    <div className="px-4 py-3 border-t border-stone-100 dark:border-zinc-800">
       <input
         ref={ref}
         value={text}
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter") submit();
-          if (e.key === "Escape") {
-            setOpen(false);
-            setText("");
-          }
+          if (e.key === "Escape") { setOpen(false); setText(""); setFocused(false); }
         }}
-        onBlur={() => {
-          if (!text.trim()) {
-            setOpen(false);
-          }
-        }}
-        placeholder='Task name…  try "Buy milk tomorrow P1"'
-        className="flex-1 text-sm px-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        onFocus={() => setFocused(true)}
+        onBlur={() => { if (!text.trim()) { setOpen(false); setFocused(false); } }}
+        placeholder={`e.g. "${example}"`}
+        className="w-full text-sm px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500"
       />
-      <button
-        onClick={submit}
-        className="px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition"
-      >
-        Add
-      </button>
-      <button
-        onClick={() => {
-          setOpen(false);
-          setText("");
-        }}
-        className="px-2 py-1.5 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300"
-      >
-        Cancel
-      </button>
+
+      {/* NLP hint chips — shown when input is focused */}
+      {focused && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] text-zinc-400 mr-0.5">Type naturally:</span>
+          {NLP_HINTS.map((h) => (
+            <span
+              key={h.label}
+              title={h.tip}
+              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-stone-100 dark:bg-zinc-700 text-zinc-500 dark:text-zinc-400 text-[11px] cursor-default"
+            >
+              {h.icon} <span className="font-medium text-zinc-600 dark:text-zinc-300">{h.label}</span>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {/* Action buttons */}
+      <div className="mt-2 flex gap-2">
+        <button
+          onClick={submit}
+          className="px-4 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition"
+        >
+          Add task
+        </button>
+        <button
+          onClick={() => { setOpen(false); setText(""); setFocused(false); }}
+          className="px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition"
+        >
+          Cancel
+        </button>
+      </div>
     </div>
   );
 }
+
+// ─── TaskList ─────────────────────────────────────────────────────────────────
 
 const VIEW_LABELS: Record<string, string> = {
   inbox: "Inbox",
@@ -124,7 +181,6 @@ export default function TaskList({
     activeView.type === "today" ||
     activeView.type === "upcoming";
 
-  // Header title + emoji
   let headerTitle = "";
   let headerEmoji = "";
   if (activeView.type === "inbox") { headerTitle = "Inbox"; headerEmoji = "📥"; }
@@ -133,11 +189,12 @@ export default function TaskList({
   else if (activeView.type === "smartview") { headerTitle = activeView.name; headerEmoji = activeView.emoji ?? "🔖"; }
   else if (activeView.type === "project") { headerTitle = activeView.name; headerEmoji = activeView.emoji ?? "📋"; }
 
+  // Context string passed to example generator
+  const contextLabel = headerTitle.toLowerCase();
+
   if (isProjectView && sections.length > 0) {
-    // Group tasks by section
     const sectionMap = new Map<number, Task[]>();
     const unsectioned: Task[] = [];
-
     sections.forEach((s) => sectionMap.set(s.id, []));
     tasks.forEach((t) => {
       if (t.sectionId && sectionMap.has(t.sectionId)) {
@@ -149,28 +206,14 @@ export default function TaskList({
 
     return (
       <div className="flex flex-col h-full overflow-hidden">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-stone-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex-shrink-0">
-          <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-            <span>{headerEmoji}</span>
-            <span>{headerTitle}</span>
-          </h1>
-        </div>
-
-        {/* Scrollable content */}
+        <Header emoji={headerEmoji} title={headerTitle} count={tasks.length} />
         <div className="flex-1 overflow-y-auto bg-white dark:bg-zinc-950">
           {unsectioned.length > 0 && (
             <div className="mb-2">
               {unsectioned.map((t) => (
-                <TaskRow
-                  key={t.id}
-                  task={t}
-                  isSelected={selectedId === t.id}
-                  onSelect={() => onSelectTask(t)}
-                  onComplete={() => onCompleteTask(t.id)}
-                  onDelete={() => onDeleteTask(t.id)}
-                  showProject={false}
-                />
+                <TaskRow key={t.id} task={t} isSelected={selectedId === t.id}
+                  onSelect={() => onSelectTask(t)} onComplete={() => onCompleteTask(t.id)}
+                  onDelete={() => onDeleteTask(t.id)} showProject={false} />
               ))}
             </div>
           )}
@@ -178,31 +221,17 @@ export default function TaskList({
           {sections.map((sec) => {
             const secTasks = sectionMap.get(sec.id) ?? [];
             return (
-              <div key={sec.id} className="mb-4">
-                <div className="px-4 py-2 flex items-center gap-2">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-zinc-400 dark:text-zinc-500">
-                    {sec.name}
-                  </span>
-                  <span className="text-xs text-zinc-300 dark:text-zinc-600">
-                    {secTasks.length > 0 ? secTasks.length : ""}
-                  </span>
-                </div>
-
+              <div key={sec.id} className="mb-2">
+                <SectionHeader name={sec.name} count={secTasks.length} />
                 {secTasks.map((t) => (
-                  <TaskRow
-                    key={t.id}
-                    task={t}
-                    isSelected={selectedId === t.id}
-                    onSelect={() => onSelectTask(t)}
-                    onComplete={() => onCompleteTask(t.id)}
-                    onDelete={() => onDeleteTask(t.id)}
-                    showProject={false}
-                  />
+                  <TaskRow key={t.id} task={t} isSelected={selectedId === t.id}
+                    onSelect={() => onSelectTask(t)} onComplete={() => onCompleteTask(t.id)}
+                    onDelete={() => onDeleteTask(t.id)} showProject={false} />
                 ))}
-
                 <AddTaskInline
                   onAdd={(title) => onAddTask(title, sec.id)}
-                  placeholder={`Add to ${sec.name}`}
+                  contextLabel={sec.name}
+                  triggerLabel={`Add to ${sec.name}`}
                 />
               </div>
             );
@@ -213,46 +242,77 @@ export default function TaskList({
   }
 
   // Flat view (inbox / today / upcoming / smart view)
-  const label =
-    activeView.type in VIEW_LABELS
-      ? VIEW_LABELS[activeView.type as keyof typeof VIEW_LABELS]
-      : headerTitle;
+  const label = activeView.type in VIEW_LABELS
+    ? VIEW_LABELS[activeView.type as keyof typeof VIEW_LABELS]
+    : headerTitle;
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      {/* Header */}
-      <div className="px-6 py-4 border-b border-stone-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex-shrink-0">
-        <h1 className="text-xl font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2">
-          <span>{headerEmoji}</span>
-          <span>{headerTitle}</span>
-        </h1>
+      <Header emoji={headerEmoji} title={headerTitle} count={tasks.length} />
+      <div className="px-6 py-3 border-b border-stone-100 dark:border-zinc-800 bg-white dark:bg-zinc-950">
+        <AddTaskInline onAdd={(title) => onAddTask(title)} contextLabel={contextLabel} />
       </div>
-
-      {/* Quick-add */}
-      <div className="px-6 py-3 border-b border-stone-100 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex-shrink-0">
-        <AddTaskInline onAdd={(title) => onAddTask(title)} />
-      </div>
-
-      {/* Tasks */}
       <div className="flex-1 overflow-y-auto bg-white dark:bg-zinc-950">
         {tasks.length === 0 ? (
-          <p className="p-8 text-center text-zinc-400 text-sm">
-            No tasks in {label}
-          </p>
+          <EmptyState label={label} />
         ) : (
           tasks.map((t) => (
-            <TaskRow
-              key={t.id}
-              task={t}
-              isSelected={selectedId === t.id}
-              onSelect={() => onSelectTask(t)}
-              onComplete={() => onCompleteTask(t.id)}
-              onDelete={() => onDeleteTask(t.id)}
-              showProject={showProject}
-            />
+            <TaskRow key={t.id} task={t} isSelected={selectedId === t.id}
+              onSelect={() => onSelectTask(t)} onComplete={() => onCompleteTask(t.id)}
+              onDelete={() => onDeleteTask(t.id)} showProject={showProject} />
           ))
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function Header({ emoji, title, count }: { emoji: string; title: string; count: number }) {
+  return (
+    <div className="px-6 py-5 border-b border-stone-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex-shrink-0">
+      <div className="flex items-baseline gap-3">
+        <h1 className="text-2xl font-bold text-zinc-900 dark:text-zinc-100 flex items-center gap-2.5">
+          <span className="text-2xl">{emoji}</span>
+          <span>{title}</span>
+        </h1>
+        {count > 0 && (
+          <span className="text-sm text-zinc-400 font-normal">{count} task{count !== 1 ? "s" : ""}</span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function SectionHeader({ name, count }: { name: string; count: number }) {
+  return (
+    <div className="px-6 pt-5 pb-1.5 flex items-center gap-2">
+      <div className="h-px flex-1 bg-stone-100 dark:bg-zinc-800" />
+      <span className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 dark:text-zinc-500 px-2">
+        {name}
+      </span>
+      {count > 0 && (
+        <span className="text-[11px] text-zinc-300 dark:text-zinc-600 font-medium">{count}</span>
+      )}
+      <div className="h-px flex-1 bg-stone-100 dark:bg-zinc-800" />
+    </div>
+  );
+}
+
+function EmptyState({ label }: { label: string }) {
+  return (
+    <div className="flex flex-col items-center justify-center py-20 px-8 text-center">
+      <div className="text-5xl mb-4">✨</div>
+      <p className="text-base font-medium text-zinc-500 dark:text-zinc-400">
+        {label === "Today" ? "You're all caught up for today" :
+         label === "Inbox" ? "Your inbox is clear" :
+         `Nothing in ${label} yet`}
+      </p>
+      <p className="text-sm text-zinc-400 dark:text-zinc-500 mt-1">
+        Add a task above — type naturally, like{" "}
+        <span className="italic text-zinc-500">"Review PRD by Friday P1"</span>
+      </p>
     </div>
   );
 }
