@@ -86,7 +86,8 @@ const CONTEXT_EXAMPLES: { match: string[]; example: string }[] = [
   { match: ["recipe", "meal", "cooking", "menu", "feeding"],
     example: "Try chicken tikka recipe this Sunday" },
 
-  // ── Smart views ───────────────────────────────────────────────────────────
+  // ── Smart views / flat views ───────────────────────────────────────────────
+  { match: ["your to-do", "to-do list", "todo"],  example: "Review PRD draft and send to team by Thursday P1" },
   { match: ["inbox"],                                  example: "Team sync with eng at 3pm today P1" },
   { match: ["today"],                                  example: "Review pull requests before 5pm P1" },
   { match: ["upcoming"],                               example: "Book dentist appointment next week" },
@@ -282,19 +283,72 @@ export default function TaskList({
     activeView.type === "smartview" ||
     activeView.type === "inbox" ||
     activeView.type === "today" ||
-    activeView.type === "upcoming";
+    activeView.type === "upcoming" ||
+    activeView.type === "todo";
 
   let headerTitle = "";
   let headerEmoji = "";
-  if (activeView.type === "inbox") { headerTitle = "Inbox"; headerEmoji = "📥"; }
-  else if (activeView.type === "today") { headerTitle = "Today"; headerEmoji = "☀️"; }
+  if (activeView.type === "todo")     { headerTitle = "Your To-do List"; headerEmoji = "✅"; }
+  else if (activeView.type === "inbox")    { headerTitle = "Inbox"; headerEmoji = "📥"; }
+  else if (activeView.type === "today")    { headerTitle = "Today"; headerEmoji = "☀️"; }
   else if (activeView.type === "upcoming") { headerTitle = "Upcoming"; headerEmoji = "📆"; }
   else if (activeView.type === "smartview") { headerTitle = activeView.name; headerEmoji = activeView.emoji ?? "🔖"; }
-  else if (activeView.type === "project") { headerTitle = activeView.name; headerEmoji = activeView.emoji ?? "📋"; }
+  else if (activeView.type === "project")   { headerTitle = activeView.name; headerEmoji = activeView.emoji ?? "📋"; }
 
   // Context string passed to example generator
   const contextLabel = headerTitle.toLowerCase();
 
+  // ── "Your To-do List" view: split tasks into Today / Upcoming ───────────
+  if (activeView.type === "todo") {
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+
+    const todayTasks  = smartSort(tasks.filter((t) => t.dueAt && new Date(t.dueAt) <= endOfToday));
+    const upcomingTasks = smartSort(tasks.filter((t) => !t.dueAt || new Date(t.dueAt) > endOfToday));
+
+    return (
+      <div className="flex flex-col h-full overflow-hidden">
+        <Header emoji={headerEmoji} title={headerTitle} count={tasks.length} />
+        <div className="flex-1 overflow-y-auto bg-white dark:bg-zinc-950">
+          {/* ── Today ── */}
+          <div className="mb-2">
+            <SectionHeader name="Today" count={todayTasks.length} />
+            {todayTasks.map((t) => (
+              <TaskRow key={t.id} task={t} isSelected={selectedId === t.id}
+                onSelect={() => onSelectTask(t)} onComplete={() => onCompleteTask(t.id)}
+                onDelete={() => onDeleteTask(t.id)} showProject />
+            ))}
+            <AddTaskInline
+              onAdd={(title) => onAddTask(title)}
+              contextLabel="today"
+              triggerLabel="Add for today"
+            />
+          </div>
+
+          {/* ── Upcoming ── */}
+          <div className="mb-2">
+            <SectionHeader name="Upcoming" count={upcomingTasks.length} />
+            {upcomingTasks.map((t) => (
+              <TaskRow key={t.id} task={t} isSelected={selectedId === t.id}
+                onSelect={() => onSelectTask(t)} onComplete={() => onCompleteTask(t.id)}
+                onDelete={() => onDeleteTask(t.id)} showProject />
+            ))}
+            <AddTaskInline
+              onAdd={(title) => onAddTask(title)}
+              contextLabel="upcoming"
+              triggerLabel="Add upcoming task"
+            />
+          </div>
+
+          {tasks.length === 0 && (
+            <EmptyState label="Your To-do List" />
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Project view with sections ───────────────────────────────────────────
   if (isProjectView && sections.length > 0) {
     const sorted = smartSort(tasks);
     const sectionMap = new Map<number, Task[]>();
@@ -345,7 +399,7 @@ export default function TaskList({
     );
   }
 
-  // Flat view (inbox / today / upcoming / smart view)
+  // ── Flat view (inbox / today / upcoming / smart view) ────────────────────
   const label = activeView.type in VIEW_LABELS
     ? VIEW_LABELS[activeView.type as keyof typeof VIEW_LABELS]
     : headerTitle;

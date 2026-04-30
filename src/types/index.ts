@@ -91,6 +91,7 @@ export type ActiveView =
   | { type: "inbox" }
   | { type: "today" }
   | { type: "upcoming" }
+  | { type: "todo" }
   | { type: "habits" }
   | { type: "smartview"; id: number; name: string; emoji: string | null }
   | { type: "project"; id: number; name: string; emoji: string | null; color: string | null };

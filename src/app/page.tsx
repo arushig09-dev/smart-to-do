@@ -8,7 +8,7 @@ import HabitTracker from "@/components/HabitTracker";
 import type { Task, Project, Section, ActiveView } from "@/types";
 
 export default function Home() {
-  const [activeView, setActiveView] = useState<ActiveView>({ type: "inbox" });
+  const [activeView, setActiveView] = useState<ActiveView>({ type: "todo" });
   const [tasks, setTasks] = useState<Task[]>([]);
   const [sections, setSections] = useState<Section[]>([]);
   const [allProjects, setAllProjects] = useState<Project[]>([]);
@@ -36,8 +36,10 @@ export default function Home() {
         setTasks(data.tasks ?? []);
         setLoading(false);
         return;
-      } else {
+      } else if (activeView.type !== "todo") {
         url += `?view=${activeView.type}`;
+      } else {
+        url += `?view=todo`;
       }
       const res = await fetch(url);
       const data = await res.json();

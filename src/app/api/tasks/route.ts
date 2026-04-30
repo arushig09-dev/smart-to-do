@@ -28,12 +28,16 @@ export async function GET(req: NextRequest) {
     } else if (view === "today") {
       where.status = "open";
       where.isBlocked = false;
+    } else if (view === "todo") {
+      // All open tasks — client groups them into Today vs Upcoming
+      where.status = "open";
     }
   }
 
   let orderBy: Record<string, string>[] = [{ createdAt: "desc" }];
   if (view === "upcoming") orderBy = [{ dueAt: "asc" }];
   if (view === "today") orderBy = [{ priorityScore: "desc" }];
+  if (view === "todo") orderBy = [{ dueAt: "asc" }, { priorityScore: "desc" }, { createdAt: "desc" }];
   if (projectId || sectionId) orderBy = [{ order: "asc" }, { createdAt: "asc" }];
 
   const tasks = await prisma.task.findMany({
@@ -45,7 +49,7 @@ export async function GET(req: NextRequest) {
       subtasks: { select: { id: true, title: true, status: true } },
     },
     orderBy,
-    take: view === "today" ? 10 : 200,
+    take: view === "today" ? 10 : 500,
   });
 
   return NextResponse.json(tasks);
