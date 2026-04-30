@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import type { Task, Project, Section } from "@/types";
+import { useTheme } from "@/contexts/ThemeContext";
 
 const PRIORITY_OPTIONS = [
   { value: "", label: "Auto (AI)" },
@@ -23,6 +24,7 @@ export default function TaskDetail({
   onSaved: (updated: Task) => void;
   onDeleted: (id: number) => void;
 }) {
+  const { theme } = useTheme();
   const [title, setTitle] = useState(task.title);
   const [notes, setNotes] = useState(task.notes ?? "");
   const [dueAt, setDueAt] = useState(task.dueAt ? task.dueAt.slice(0, 16) : "");
@@ -282,7 +284,7 @@ export default function TaskDetail({
         <button
           onClick={save}
           disabled={saving}
-          className="flex-1 py-2 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 disabled:opacity-60 transition"
+          className={`flex-1 py-2 text-sm font-medium rounded-lg ${theme.button} disabled:opacity-60`}
         >
           {saving ? "Saving…" : "Save changes"}
         </button>

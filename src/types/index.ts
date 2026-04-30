@@ -68,9 +68,29 @@ export type Task = {
   subtasks: Subtask[];
 };
 
+export type Habit = {
+  id: number;
+  name: string;
+  emoji: string | null;
+  color: string | null;
+  targetDays: number;
+  order: number;
+  isArchived: boolean;
+  createdAt: string;
+  entries: HabitEntry[];
+  streak?: number;
+};
+
+export type HabitEntry = {
+  id: number;
+  habitId: number;
+  date: string;
+};
+
 export type ActiveView =
   | { type: "inbox" }
   | { type: "today" }
   | { type: "upcoming" }
+  | { type: "habits" }
   | { type: "smartview"; id: number; name: string; emoji: string | null }
   | { type: "project"; id: number; name: string; emoji: string | null; color: string | null };

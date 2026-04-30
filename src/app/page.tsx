@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import Sidebar from "@/components/Sidebar";
 import TaskList from "@/components/TaskList";
 import TaskDetail from "@/components/TaskDetail";
+import HabitTracker from "@/components/HabitTracker";
 import type { Task, Project, Section, ActiveView } from "@/types";
 
 export default function Home() {
@@ -118,7 +119,9 @@ export default function Home() {
       <Sidebar activeView={activeView} onViewChange={handleViewChange} />
 
       <main className="flex-1 flex flex-col overflow-hidden">
-        {loading && tasks.length === 0 ? (
+        {activeView.type === "habits" ? (
+          <HabitTracker />
+        ) : loading && tasks.length === 0 ? (
           <div className="flex-1 flex items-center justify-center text-zinc-400 text-sm">
             Loading…
           </div>

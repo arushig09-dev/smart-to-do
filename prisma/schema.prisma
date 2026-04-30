@@ -24,6 +24,7 @@ model User {
   notifications Notification[]
   recipes       Recipe[]
   babyFeedLogs  BabyFeedLog[]
+  habits        Habit[]
 }
 
 model Project {
@@ -132,6 +133,31 @@ model BabyFeedLog {
   userId    Int?
   user      User?    @relation(fields: [userId], references: [id])
   createdAt DateTime @default(now())
+}
+
+model Habit {
+  id         Int          @id @default(autoincrement())
+  name       String
+  emoji      String?
+  color      String?      @default("#059669")
+  targetDays Int          @default(7)
+  order      Int          @default(0)
+  isArchived Boolean      @default(false)
+  userId     Int?
+  user       User?        @relation(fields: [userId], references: [id])
+  entries    HabitEntry[]
+  createdAt  DateTime     @default(now())
+}
+
+model HabitEntry {
+  id        Int      @id @default(autoincrement())
+  habitId   Int
+  habit     Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  date      DateTime
+  userId    Int?
+  createdAt DateTime @default(now())
+
+  @@unique([habitId, date])
 }
 
 model Task {

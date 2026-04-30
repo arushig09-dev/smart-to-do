@@ -3,6 +3,26 @@
 import { useState, useRef } from "react";
 import type { Task, Section, ActiveView } from "@/types";
 import TaskRow from "./TaskRow";
+import { useTheme } from "@/contexts/ThemeContext";
+
+// ─── Smart sort ───────────────────────────────────────────────────────────────
+
+const PRIORITY_ORDER: Record<string, number> = { P0: 0, P1: 1, P2: 2 };
+
+function smartSort(tasks: Task[]): Task[] {
+  return [...tasks].sort((a, b) => {
+    // 1. Priority (P0 > P1 > P2 > none)
+    const pa = PRIORITY_ORDER[a.suggestedPriority ?? a.manualPriority ?? ""] ?? 3;
+    const pb = PRIORITY_ORDER[b.suggestedPriority ?? b.manualPriority ?? ""] ?? 3;
+    if (pa !== pb) return pa - pb;
+    // 2. Due date ascending (tasks with no due date go last)
+    if (a.dueAt && b.dueAt) return new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
+    if (a.dueAt) return -1;
+    if (b.dueAt) return 1;
+    // 3. Newest first
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+}
 
 // ─── Context-aware NLP examples ──────────────────────────────────────────────
 
@@ -62,6 +82,7 @@ function AddTaskInline({
   contextLabel: string;
   triggerLabel?: string;
 }) {
+  const { theme } = useTheme();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [focused, setFocused] = useState(false);
@@ -132,7 +153,7 @@ function AddTaskInline({
       <div className="mt-2 flex gap-2">
         <button
           onClick={submit}
-          className="px-4 py-1.5 text-sm font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition"
+          className={`px-4 py-1.5 text-sm font-medium rounded-lg ${theme.button}`}
         >
           Add task
         </button>
@@ -193,10 +214,11 @@ export default function TaskList({
   const contextLabel = headerTitle.toLowerCase();
 
   if (isProjectView && sections.length > 0) {
+    const sorted = smartSort(tasks);
     const sectionMap = new Map<number, Task[]>();
     const unsectioned: Task[] = [];
     sections.forEach((s) => sectionMap.set(s.id, []));
-    tasks.forEach((t) => {
+    sorted.forEach((t) => {
       if (t.sectionId && sectionMap.has(t.sectionId)) {
         sectionMap.get(t.sectionId)!.push(t);
       } else {
@@ -256,7 +278,7 @@ export default function TaskList({
         {tasks.length === 0 ? (
           <EmptyState label={label} />
         ) : (
-          tasks.map((t) => (
+          smartSort(tasks).map((t) => (
             <TaskRow key={t.id} task={t} isSelected={selectedId === t.id}
               onSelect={() => onSelectTask(t)} onComplete={() => onCompleteTask(t.id)}
               onDelete={() => onDeleteTask(t.id)} showProject={showProject} />
