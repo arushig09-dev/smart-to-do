@@ -53,6 +53,19 @@ const CONTEXT_EXAMPLES: { match: string[]; example: string }[] = [
   { match: ["upcoming"], example: "Book dentist appointment next week" },
   { match: ["due this week", "due next week", "due in 30"], example: "Submit report by Friday P1" },
   { match: ["high priority"], example: "Fix critical bug in prod today P0" },
+  // Section-name-only fallbacks for common section patterns
+  { match: ["this week", "in progress", "active"], example: "Finish draft spec and share for review P1" },
+  { match: ["next week", "backlog", "later"], example: "Add dashboard export feature — start next sprint P2" },
+  { match: ["blocked", "waiting", "needs input"], example: "Unblock API design review with backend lead P0" },
+  { match: ["done", "completed", "shipped"], example: "Document retro learnings from last sprint" },
+];
+
+// Broad work-context keywords — if any appear in the combined project+section label,
+// fall back to a work-appropriate default rather than a grocery example.
+const WORK_CONTEXT_KEYWORDS = [
+  "work", "sprint", "execution", "strategy", "roadmap", "product", "eng", "design",
+  "launch", "project", "team", "stakeholder", "okr", "feature", "milestone", "q1",
+  "q2", "q3", "q4", "planning", "review", "meeting", "sync", "leadership",
 ];
 
 function getContextExample(context: string): string {
@@ -60,7 +73,11 @@ function getContextExample(context: string): string {
   for (const { match, example } of CONTEXT_EXAMPLES) {
     if (match.some((kw) => lower.includes(kw))) return example;
   }
-  return "Buy milk tomorrow P2  ·  Ship feature by Friday P0";
+  // Generic fallback: pick work or personal flavour based on context keywords
+  const isWorkContext = WORK_CONTEXT_KEYWORDS.some((kw) => lower.includes(kw));
+  return isWorkContext
+    ? "Write PRD section on notification system by Thursday P1"
+    : "Buy groceries and meal prep for the week";
 }
 
 // ─── NLP hint chips ──────────────────────────────────────────────────────────
@@ -252,7 +269,7 @@ export default function TaskList({
                 ))}
                 <AddTaskInline
                   onAdd={(title) => onAddTask(title, sec.id)}
-                  contextLabel={sec.name}
+                  contextLabel={`${headerTitle} ${sec.name}`}
                   triggerLabel={`Add to ${sec.name}`}
                 />
               </div>
