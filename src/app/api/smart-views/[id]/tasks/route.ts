@@ -65,6 +65,7 @@ export async function GET(
       project: { select: { id: true, name: true, emoji: true, color: true } },
       section: { select: { id: true, name: true } },
       labels: { include: { label: true } },
+      subtasks: { select: { id: true, title: true, status: true } },
     },
     orderBy: [{ dueAt: "asc" }, { priorityScore: "desc" }],
     take: 200,

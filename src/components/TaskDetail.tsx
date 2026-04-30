@@ -221,7 +221,7 @@ export default function TaskDetail({
         )}
 
         {/* Labels */}
-        {task.labels.length > 0 && (
+        {task.labels?.length > 0 && (
           <div>
             <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
               Labels
@@ -245,7 +245,7 @@ export default function TaskDetail({
         )}
 
         {/* Subtasks */}
-        {task.subtasks.length > 0 && (
+        {task.subtasks?.length > 0 && (
           <div>
             <p className="text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5">
               Subtasks ({task.subtasks.filter((s) => s.status === "completed").length}/

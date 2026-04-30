@@ -108,7 +108,7 @@ export default function TaskRow({
             </span>
           )}
 
-          {task.labels.map(({ label }) => (
+          {(task.labels ?? []).map(({ label }) => (
             <span
               key={label.id}
               className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] rounded-full bg-stone-200 dark:bg-zinc-700 text-zinc-600 dark:text-zinc-300"
@@ -118,7 +118,7 @@ export default function TaskRow({
             </span>
           ))}
 
-          {task.subtasks.length > 0 && (
+          {task.subtasks?.length > 0 && (
             <span className="text-xs text-zinc-400">
               {task.subtasks.filter((s) => s.status === "completed").length}/
               {task.subtasks.length} subtasks
