@@ -113,7 +113,10 @@ const CONTEXT_EXAMPLES: { match: string[]; example: string }[] = [
   { match: ["friends catch-ups", "catch-ups"],
     example: "Text Sarah to schedule brunch catch-up this month" },
 
-  // ── Travel & Outings sections ─────────────────────────────────────────────
+  // ── Home Upkeep & Maintenance sections ───────────────────────────────────
+  { match: ["maintenance & repairs"],  example: "Call plumber about kitchen leak — schedule for this week P0" },
+  { match: ["decor & furnishing"],     example: "Order new throw pillows and side table for living room P2" },
+  { match: ["service providers"],      example: "Save electrician contact — Mike at ABC Electric 555-0123" },
   { match: ["trip planning"],       example: "Research kid-friendly restaurants in Portland for August trip P2" },
   { match: ["day outings"],         example: "Plan family picnic at the park this Sunday" },
   { match: ["packing lists"],       example: "Pack hospital bag — go-bag checklist by 36 weeks P0" },
@@ -184,7 +187,7 @@ const CONTEXT_EXAMPLES: { match: string[]; example: string }[] = [
     example: "Order birthday gift for mum by this Friday" },
   { match: ["travel", "trip", "outing", "packing", "vacation"],
     example: "Book hotel for Portland trip by next Thursday P1" },
-  { match: ["home", "house", "renovation", "repair", "contractor"],
+  { match: ["home", "house", "upkeep", "renovation", "repair", "contractor"],
     example: "Call plumber about kitchen leak tomorrow P0" },
   { match: ["finance", "bill", "tax", "subscription", "insurance", "budget"],
     example: "Pay Q2 estimated taxes by Apr 15 P0" },

@@ -179,11 +179,9 @@ async function main() {
   const travel = await createProject("Travel & Outings", "✈️", "#0ea5e9", personal.id, 5);
   await addSections(travel.id, ["Upcoming Trips", "Trip Planning", "Day Outings", "Packing Lists"]);
 
-  // Home & House → Renovation Projects (child)
-  const home = await createProject("Home & House", "🏡", "#a16207", personal.id, 6);
+  // Home Upkeep & Maintenance
+  const home = await createProject("Home Upkeep & Maintenance", "🏠", "#a16207", personal.id, 6);
   await addSections(home.id, ["Maintenance & Repairs", "Decor & Furnishing", "Service Providers"]);
-  const reno = await createProject("Renovation Projects", "🔨", "#a16207", home.id, 0);
-  await addSections(reno.id, ["Planning", "Active", "Completed", "Contractors & Quotes"]);
 
   // Finance & Admin
   const finance = await createProject("Finance & Admin", "💰", "#0d9488", personal.id, 7);
