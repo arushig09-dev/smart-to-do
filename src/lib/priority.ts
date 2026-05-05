@@ -15,6 +15,18 @@ interface TaskInput {
 
 export function suggestPriority(task: TaskInput): PrioritySuggestion {
   const now = new Date();
+
+  // Manual priority is authoritative — AI signals only apply when none is set
+  if (task.manualPriority === "P0" || task.manualPriority === "P1" || task.manualPriority === "P2") {
+    const scoreMap = { P0: 100, P1: 60, P2: 30 };
+    return {
+      score: scoreMap[task.manualPriority],
+      priority: task.manualPriority,
+      reason: `Manually set to ${task.manualPriority}`,
+    };
+  }
+
+  // No manual priority — derive from signals
   const reasons: string[] = [];
   let score = 0;
 
@@ -41,19 +53,6 @@ export function suggestPriority(task: TaskInput): PrioritySuggestion {
   if (ageHours <= 12) {
     score += 3;
     reasons.push("Recently updated");
-  }
-
-  if (task.manualPriority) {
-    if (task.manualPriority === "P0") {
-      score += 100;
-      reasons.push("Manual P0");
-    } else if (task.manualPriority === "P1") {
-      score += 60;
-      reasons.push("Manual P1");
-    } else {
-      score += 30;
-      reasons.push("Manual P2");
-    }
   }
 
   let priority: Priority;

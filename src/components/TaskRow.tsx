@@ -5,9 +5,9 @@ import type { Task } from "@/types";
 import { useTheme } from "@/contexts/ThemeContext";
 
 const PRIORITY_CONFIG: Record<string, { bg: string; label: string; stripe: string }> = {
-  P0: { bg: "bg-red-500",   label: "P0", stripe: "border-l-[3px] border-red-500" },
-  P1: { bg: "bg-amber-400", label: "P1", stripe: "border-l-[3px] border-amber-400" },
-  P2: { bg: "bg-sky-400",   label: "P2", stripe: "border-l-[3px] border-sky-400" },
+  P0: { bg: "bg-red-500",   label: "High",   stripe: "border-l-[3px] border-red-500" },
+  P1: { bg: "bg-amber-400", label: "Medium", stripe: "border-l-[3px] border-amber-400" },
+  P2: { bg: "bg-sky-400",   label: "Low",    stripe: "border-l-[3px] border-sky-400" },
 };
 
 function relativeDate(d: string): string {
@@ -32,7 +32,8 @@ export default function TaskRow({
   const { theme } = useTheme();
   const [completing, setCompleting] = useState(false);
 
-  const priority = task.suggestedPriority ?? task.manualPriority;
+  // manualPriority always wins over AI suggestion — user's explicit choice takes precedence
+  const priority = task.manualPriority ?? task.suggestedPriority;
   const pConfig = priority ? PRIORITY_CONFIG[priority] : null;
   const overdue = task.dueAt && isDueOverdue(task.dueAt) && task.status !== "completed";
 
@@ -50,10 +51,10 @@ export default function TaskRow({
         isSelected ? "bg-stone-100 dark:bg-zinc-800/60" : "hover:bg-stone-50 dark:hover:bg-zinc-800/40"
       }`}
     >
-      {/* Complete button with pulse animation */}
+      {/* Complete button — larger touch target on mobile */}
       <button
         onClick={(e) => { e.stopPropagation(); handleComplete(); }}
-        className={`mt-0.5 flex-shrink-0 w-[18px] h-[18px] rounded-full border-2 transition-all duration-300 ${
+        className={`mt-0.5 flex-shrink-0 w-5 h-5 sm:w-[18px] sm:h-[18px] rounded-full border-2 transition-all duration-300 ${
           task.status === "completed" || completing
             ? "border-green-500 bg-green-500 scale-110"
             : "border-zinc-300 dark:border-zinc-600 hover:border-green-400 hover:scale-110"
@@ -108,10 +109,10 @@ export default function TaskRow({
         </div>
       </div>
 
-      {/* Delete (hover reveal) */}
+      {/* Delete — always visible on mobile, hover-reveal on desktop */}
       <button
         onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        className={`flex-shrink-0 mt-1 opacity-0 group-hover:opacity-100 ${theme.buttonOutline} rounded p-0.5 transition-all`}
+        className={`flex-shrink-0 mt-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 ${theme.buttonOutline} rounded p-1 sm:p-0.5 transition-all`}
         title="Delete"
       >
         <svg width="13" height="13" viewBox="0 0 14 14" fill="none">

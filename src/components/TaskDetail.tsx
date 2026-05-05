@@ -6,9 +6,9 @@ import { useTheme } from "@/contexts/ThemeContext";
 
 const PRIORITY_OPTIONS = [
   { value: "", label: "Auto (AI)" },
-  { value: "P0", label: "P0 — Critical 🔴" },
-  { value: "P1", label: "P1 — High 🟠" },
-  { value: "P2", label: "P2 — Normal 🔵" },
+  { value: "P0", label: "High Priority 🔴" },
+  { value: "P1", label: "Medium Priority 🟠" },
+  { value: "P2", label: "Low Priority 🔵" },
 ];
 
 export default function TaskDetail({
@@ -79,9 +79,9 @@ export default function TaskDetail({
   }
 
   return (
-    <aside className="w-96 flex-shrink-0 flex flex-col bg-white dark:bg-zinc-900 border-l border-stone-200 dark:border-zinc-800 overflow-y-auto">
+    <aside className={`w-full h-full sm:w-96 flex-shrink-0 flex flex-col ${theme.mainBg} border-l ${theme.borderColor} overflow-y-auto`}>
       {/* Panel header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-stone-200 dark:border-zinc-800 flex-shrink-0">
+      <div className={`flex items-center justify-between px-4 sm:px-5 py-4 border-b ${theme.borderColor} flex-shrink-0`}>
         <h2 className="text-sm font-semibold text-zinc-700 dark:text-zinc-300">
           Task Details
         </h2>

@@ -36,10 +36,30 @@ export function parseTask(raw: string): ParseResult {
   let dueLabel: string | null = null;
   let manualPriority: string | null = null;
 
+  // Accept P0/P1/P2 shorthand OR "high"/"medium"/"low" (case-insensitive)
   text = text.replace(/\b[Pp][012]\b/, (m) => {
     manualPriority = m.toUpperCase();
     return "";
   });
+
+  if (!manualPriority) {
+    text = text.replace(/\b(high|urgent|critical)\s*(?:priority)?\b/i, () => {
+      manualPriority = "P0";
+      return "";
+    });
+  }
+  if (!manualPriority) {
+    text = text.replace(/\bmedium\s*(?:priority)?\b/i, () => {
+      manualPriority = "P1";
+      return "";
+    });
+  }
+  if (!manualPriority) {
+    text = text.replace(/\blow\s*(?:priority)?\b/i, () => {
+      manualPriority = "P2";
+      return "";
+    });
+  }
 
   text = text.replace(/\btoday\b/i, () => {
     dueAt = endOfDay(now);

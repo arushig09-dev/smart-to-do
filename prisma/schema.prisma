@@ -43,6 +43,7 @@ model Project {
   sections   Section[]
   tasks      Task[]
   favorites  Favorite[]
+  linkedHabits Habit[]
   createdAt  DateTime  @default(now())
 }
 
@@ -53,6 +54,7 @@ model Section {
   projectId Int
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   tasks     Task[]
+  linkedHabits Habit[]
   createdAt DateTime @default(now())
 }
 
@@ -136,17 +138,23 @@ model BabyFeedLog {
 }
 
 model Habit {
-  id         Int          @id @default(autoincrement())
-  name       String
-  emoji      String?
-  color      String?      @default("#059669")
-  targetDays Int          @default(7)
-  order      Int          @default(0)
-  isArchived Boolean      @default(false)
-  userId     Int?
-  user       User?        @relation(fields: [userId], references: [id])
-  entries    HabitEntry[]
-  createdAt  DateTime     @default(now())
+  id               Int          @id @default(autoincrement())
+  name             String
+  emoji            String?
+  color            String?      @default("#059669")
+  targetDays       Int          @default(7)
+  goal             String?      // custom goal text e.g. "Drink 2l of water every day"
+  daysOfWeek       String?      // comma-separated JS day indices e.g. "1,2,3,4,5" for Mon–Fri
+  linkedProjectId  Int?
+  linkedProject    Project?     @relation(fields: [linkedProjectId], references: [id])
+  linkedSectionId  Int?
+  linkedSection    Section?     @relation(fields: [linkedSectionId], references: [id])
+  order            Int          @default(0)
+  isArchived       Boolean      @default(false)
+  userId           Int?
+  user             User?        @relation(fields: [userId], references: [id])
+  entries          HabitEntry[]
+  createdAt        DateTime     @default(now())
 }
 
 model HabitEntry {

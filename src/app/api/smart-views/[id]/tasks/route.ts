@@ -49,7 +49,10 @@ export async function GET(
   if (filter.status) where.status = filter.status;
 
   if (filter.priority) {
-    where.suggestedPriority = { in: filter.priority };
+    where.OR = [
+      { manualPriority: { in: filter.priority } },
+      { AND: [{ manualPriority: null }, { suggestedPriority: { in: filter.priority } }] },
+    ];
   }
 
   const dueFilter: Record<string, unknown> = {};

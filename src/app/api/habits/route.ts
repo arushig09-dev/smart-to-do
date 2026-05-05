@@ -30,9 +30,17 @@ function calcStreak(entries: { date: Date | string }[]): number {
   return streak;
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const sectionId  = searchParams.get("sectionId");
+  const projectId  = searchParams.get("projectId");
+
+  const where: Record<string, unknown> = { isArchived: false };
+  if (sectionId)  where.linkedSectionId  = parseInt(sectionId,  10);
+  if (projectId)  where.linkedProjectId  = parseInt(projectId, 10);
+
   const habits = await prisma.habit.findMany({
-    where: { isArchived: false },
+    where,
     include: {
       entries: {
         where: {
@@ -57,7 +65,7 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const { name, emoji, color, targetDays } = body;
+  const { name, emoji, color, targetDays, goal, daysOfWeek, linkedProjectId, linkedSectionId } = body;
   if (!name?.trim()) return NextResponse.json({ error: "Name required" }, { status: 400 });
 
   const habit = await prisma.habit.create({
@@ -66,6 +74,10 @@ export async function POST(req: NextRequest) {
       emoji: emoji || null,
       color: color || "#059669",
       targetDays: targetDays ?? 7,
+      goal: goal?.trim() || null,
+      daysOfWeek: daysOfWeek || null,
+      linkedProjectId: linkedProjectId || null,
+      linkedSectionId: linkedSectionId || null,
     },
     include: { entries: true },
   });
