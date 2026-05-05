@@ -30,6 +30,11 @@ async function addSections(projectId: number, names: string[]) {
 async function main() {
   console.log("Seeding database…");
 
+  // ── Clean slate — remove all existing projects/sections (cascades to tasks) ──
+  await prisma.section.deleteMany({});
+  await prisma.project.deleteMany({});
+  console.log("  ✓ Cleared old projects & sections");
+
   // ── Smart Views (always global, no userId) ──────────────────────────────
   const smartViews = [
     {
@@ -69,7 +74,7 @@ async function main() {
 
   for (const sv of smartViews) {
     await prisma.smartView.upsert({
-      where: { id: sv.order + 1 }, // deterministic for re-runs
+      where: { id: sv.order + 1 },
       update: {},
       create: sv,
     });
@@ -95,130 +100,62 @@ async function main() {
   console.log("  ✓ Labels");
 
   // ╔══════════════════════════════════════════════════════════════════╗
-  // ║  WORK                                                            ║
+  // ║  WORK  (5 sub-projects)                                         ║
   // ╚══════════════════════════════════════════════════════════════════╝
 
   const work = await createProject("Work", "💼", "#6366f1", null, 0, true);
 
-  // Strategy & Roadmap
-  const strategy = await createProject("Strategy & Roadmap", "🗺️", "#8b5cf6", work.id, 0);
-  await addSections(strategy.id, ["Vision & Goals", "Quarterly OKRs", "Feature Backlog", "Deprioritized"]);
+  // Planning
+  const planning = await createProject("Planning", "🗺️", "#8b5cf6", work.id, 0);
+  await addSections(planning.id, ["Goals & OKRs", "Roadmap", "Backlog", "Someday"]);
 
-  // Deliverables & Specs
-  const deliverables = await createProject("Deliverables & Specs", "📄", "#3b82f6", work.id, 1);
-  await addSections(deliverables.id, ["In Progress", "In Review", "Shipped", "On Hold"]);
+  // Execution
+  const execution = await createProject("Execution", "⚙️", "#06b6d4", work.id, 1);
+  await addSections(execution.id, ["This Week", "In Progress", "Blocked", "Done"]);
 
-  // Execution & Sprints
-  const execution = await createProject("Execution & Sprints", "⚙️", "#06b6d4", work.id, 2);
-  await addSections(execution.id, ["This Week", "Blocked / Needs Input", "Eng Handoffs", "Bug Triage"]);
+  // Stakeholders
+  const stakeholders = await createProject("Stakeholders", "🤝", "#f59e0b", work.id, 2);
+  await addSections(stakeholders.id, ["Follow-ups", "Waiting On", "To Discuss", "Escalations"]);
 
-  // Stakeholder & Alignment
-  const stakeholder = await createProject("Stakeholder & Alignment", "🤝", "#f59e0b", work.id, 3);
-  await addSections(stakeholder.id, ["Follow-ups Needed", "Waiting on Others", "To Sync", "Escalations"]);
+  // Career
+  const career = await createProject("Career", "🏆", "#eab308", work.id, 3);
+  await addSections(career.id, ["Goals", "Wins", "1:1 Prep", "Learning"]);
 
-  // Data & Insights (parent) → Experiments (child)
-  const data = await createProject("Data & Insights", "📊", "#10b981", work.id, 4);
-  const experiments = await createProject("Experiments", "🧪", "#10b981", data.id, 0);
-  await addSections(experiments.id, ["Planning", "Running", "Results Analyzed", "Learnings"]);
-
-  // Growth & Upskilling
-  const growth = await createProject("Growth & Upskilling", "📚", "#f97316", work.id, 5);
-  await addSections(growth.id, ["Currently Learning", "Reading List", "Courses", "To Explore"]);
-
-  // Career & Performance
-  const career = await createProject("Career & Performance", "🏆", "#eab308", work.id, 6);
-  await addSections(career.id, ["Goals", "Wins & Impact Log", "1:1 Prep", "Feedback to Give / Get"]);
-
-  // Culture & Social
-  const culture = await createProject("Culture & Social", "🎉", "#ec4899", work.id, 7);
-  await addSections(culture.id, ["Team Events", "Shoutouts", "Coffee Chats", "Hiring"]);
-
-  // Admin & Ops
-  const admin = await createProject("Admin & Ops", "🗂️", "#64748b", work.id, 8);
-  await addSections(admin.id, ["Recurring", "Expenses & Travel", "Vendor Requests", "Meeting Prep"]);
+  // Admin
+  const admin = await createProject("Admin", "🗂️", "#64748b", work.id, 4);
+  await addSections(admin.id, ["Recurring", "Expenses & Travel", "Meeting Prep", "Vendor Requests"]);
 
   console.log("  ✓ Work folder structure");
 
   // ╔══════════════════════════════════════════════════════════════════╗
-  // ║  PERSONAL                                                        ║
+  // ║  PERSONAL  (6 sub-projects)                                     ║
   // ╚══════════════════════════════════════════════════════════════════╝
 
   const personal = await createProject("Personal", "🏠", "#f43f5e", null, 1, true);
 
-  // Daily Logistics
-  const logistics = await createProject("Daily Logistics", "🛒", "#84cc16", personal.id, 0);
-  await addSections(logistics.id, ["Groceries", "Online Orders & Returns", "Home Supplies", "Errands"]);
+  // Day-to-day Logistics
+  const logistics = await createProject("Day-to-day Logistics", "🛒", "#84cc16", personal.id, 0);
+  await addSections(logistics.id, ["Groceries & Shopping", "Home Maintenance", "Orders & Returns", "Other Errands"]);
 
-  // Baby & Parenting
-  const baby = await createProject("Baby & Parenting", "👶", "#fb7185", personal.id, 1);
-  await addSections(baby.id, [
-    "Health & Checkups",
-    "Gear & Supplies",
-    "Development & Activities",
-    "Childcare & Care Team",
-  ]);
+  // Family & Kids
+  const family = await createProject("Family & Kids", "👨‍👩‍👧", "#fb7185", personal.id, 1);
+  await addSections(family.id, ["Baby & Parenting", "Appointments", "Events & Birthdays", "Playdates"]);
 
-  // Health & Medical
-  const health = await createProject("Health & Medical", "🏥", "#ef4444", personal.id, 2);
-  await addSections(health.id, [
-    "My Appointments",
-    "Baby Appointments",
-    "Prescriptions & Refills",
-    "Insurance & Claims",
-  ]);
+  // Health & Wellness
+  const health = await createProject("Health & Wellness", "💪", "#22c55e", personal.id, 2);
+  await addSections(health.id, ["Fitness", "Nutrition", "Appointments", "Self-care"]);
 
-  // Fitness & Wellness
-  const fitness = await createProject("Fitness & Wellness", "💪", "#22c55e", personal.id, 3);
-  await addSections(fitness.id, ["Workouts", "Nutrition & Meal Prep", "Sleep & Recovery", "Self-care"]);
+  // Finance
+  const finance = await createProject("Finance", "💰", "#0d9488", personal.id, 3);
+  await addSections(finance.id, ["Bills & Subscriptions", "Taxes & Docs", "Insurance", "Big Purchases"]);
 
-  // Family & Social
-  const family = await createProject("Family & Social", "👨‍👩‍👧", "#f97316", personal.id, 4);
-  await addSections(family.id, ["Family Events", "Birthdays & Gifts", "Playdates", "Friends Catch-ups"]);
+  // Learning & Hobbies
+  const learning = await createProject("Learning & Hobbies", "🎓", "#7c3aed", personal.id, 4);
+  await addSections(learning.id, ["Reading", "Courses", "Hobbies", "Personal Goals"]);
 
-  // Travel & Outings
-  const travel = await createProject("Travel & Outings", "✈️", "#0ea5e9", personal.id, 5);
-  await addSections(travel.id, ["Upcoming Trips", "Trip Planning", "Day Outings", "Packing Lists"]);
-
-  // Home Upkeep & Maintenance
-  const home = await createProject("Home Upkeep & Maintenance", "🏠", "#a16207", personal.id, 6);
-  await addSections(home.id, ["Maintenance & Repairs", "Decor & Furnishing", "Service Providers"]);
-
-  // Finance & Admin
-  const finance = await createProject("Finance & Admin", "💰", "#0d9488", personal.id, 7);
-  await addSections(finance.id, [
-    "Bills & Subscriptions",
-    "Taxes & Documents",
-    "Insurance",
-    "Big Purchases",
-  ]);
-
-  // Learning & Personal Growth → sub-sub-projects
-  const learning = await createProject("Learning & Personal Growth", "🎓", "#7c3aed", personal.id, 8);
-
-  const books = await createProject("Books & Podcasts", "📖", "#7c3aed", learning.id, 0);
-  await addSections(books.id, ["Currently Reading / Listening", "On the List", "Finished This Year"]);
-
-  const courses = await createProject("Courses & Skills", "🧑‍💻", "#7c3aed", learning.id, 1);
-  await addSections(courses.id, ["In Progress", "Planned", "Completed"]);
-
-  const hobbies = await createProject("Hobbies & Creative", "🎨", "#7c3aed", learning.id, 2);
-  await addSections(hobbies.id, ["Active", "Want to Try", "On Pause"]);
-
-  // Mental Load
-  const mental = await createProject("Mental Load", "🧘", "#6b7280", personal.id, 9);
-  await addSections(mental.id, ["Things to Decide", "Research Needed", "Delegatable", "Long-term Goals"]);
-
-  // Meal Planning → sub-sub-projects
-  const meals = await createProject("Meal Planning", "🍽️", "#dc2626", personal.id, 10);
-
-  const recipes = await createProject("Recipe Box", "📖", "#dc2626", meals.id, 0);
-  await addSections(recipes.id, ["Quick & Easy", "Weekend Cooking", "Baby-Friendly", "Meal Prep", "Favourites"]);
-
-  const menu = await createProject("Weekly Menu", "📅", "#dc2626", meals.id, 1);
-  await addSections(menu.id, ["This Week", "Next Week", "Meal Prep Tasks", "Tried & Loved"]);
-
-  const babyFeeding = await createProject("Baby Feeding", "🍼", "#dc2626", meals.id, 2);
-  await addSections(babyFeeding.id, ["Today's Log", "Feeding Schedule", "Introducing Solids"]);
+  // Travel & Social
+  const travel = await createProject("Travel & Social", "✈️", "#0ea5e9", personal.id, 5);
+  await addSections(travel.id, ["Upcoming Trips", "Trip Planning", "Friends Catch-ups", "Packing"]);
 
   console.log("  ✓ Personal folder structure");
   console.log("\nSeed complete!");
