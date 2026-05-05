@@ -22,60 +22,56 @@ interface LinkRule {
 }
 
 const RULES: LinkRule[] = [
-  // ── Fitness & Wellness > Workouts ────────────────────────────────────────
+  // ── Health & Wellness > Fitness ───────────────────────────────────────────
   {
     keys: ["workout", "exercise", "gym", "run", "running", "steps", "walk", "swim", "yoga",
            "pilates", "stretching", "stretch", "cycling", "hiit", "lifting", "strength"],
-    link: { projectName: "Fitness & Wellness", sectionName: "Workouts",
-            label: "Fitness & Wellness › Workouts" },
+    link: { projectName: "Health & Wellness", sectionName: "Fitness",
+            label: "Health & Wellness › Fitness" },
   },
-  // ── Fitness & Wellness > Nutrition & Meal Prep ───────────────────────────
+  // ── Health & Wellness > Nutrition ─────────────────────────────────────────
   {
     keys: ["hydration", "water", "drink", "nutrition", "diet", "eating", "meal prep",
-           "vitamins", "supplements", "protein", "calorie", "macro"],
-    link: { projectName: "Fitness & Wellness", sectionName: "Nutrition & Meal Prep",
-            label: "Fitness & Wellness › Nutrition & Meal Prep" },
+           "vitamins", "supplements", "protein", "calorie", "macro",
+           "cooking", "cook", "meal", "food", "recipe"],
+    link: { projectName: "Health & Wellness", sectionName: "Nutrition",
+            label: "Health & Wellness › Nutrition" },
   },
-  // ── Fitness & Wellness > Sleep & Recovery ────────────────────────────────
-  {
-    keys: ["sleep", "bedtime", "rest", "recovery", "no phone", "no screen", "screen",
-           "wind down", "nap", "energy"],
-    link: { projectName: "Fitness & Wellness", sectionName: "Sleep & Recovery",
-            label: "Fitness & Wellness › Sleep & Recovery" },
-  },
-  // ── Fitness & Wellness > Self-care ───────────────────────────────────────
+  // ── Health & Wellness > Self-care ─────────────────────────────────────────
   {
     keys: ["meditation", "meditate", "mindfulness", "skincare", "skin care", "cold shower",
            "gratitude", "journaling", "journal", "breathe", "breathing", "self-care",
-           "spa", "massage", "wellbeing", "wellness", "mental health"],
-    link: { projectName: "Fitness & Wellness", sectionName: "Self-care",
-            label: "Fitness & Wellness › Self-care" },
+           "spa", "massage", "wellbeing", "wellness", "mental health",
+           "sleep", "bedtime", "rest", "recovery", "no phone", "no screen", "screen",
+           "wind down", "nap", "energy"],
+    link: { projectName: "Health & Wellness", sectionName: "Self-care",
+            label: "Health & Wellness › Self-care" },
   },
-  // ── Books & Podcasts > On the List ───────────────────────────────────────
+  // ── Learning & Hobbies > Reading ──────────────────────────────────────────
   {
     keys: ["reading", "read", "book", "podcast", "audiobook", "kindle"],
-    link: { projectName: "Books & Podcasts", sectionName: "On the List",
-            label: "Books & Podcasts › On the List" },
+    link: { projectName: "Learning & Hobbies", sectionName: "Reading",
+            label: "Learning & Hobbies › Reading" },
   },
-  // ── Courses & Skills > In Progress ───────────────────────────────────────
+  // ── Learning & Hobbies > Courses ──────────────────────────────────────────
   {
     keys: ["language", "duolingo", "coding", "programming", "course", "learning", "study",
            "practice", "skill", "flashcard", "anki"],
-    link: { projectName: "Courses & Skills", sectionName: "In Progress",
-            label: "Courses & Skills › In Progress" },
+    link: { projectName: "Learning & Hobbies", sectionName: "Courses",
+            label: "Learning & Hobbies › Courses" },
   },
-  // ── Personal Goals > Long-term Goals ─────────────────────────────────────
+  // ── Learning & Hobbies > Personal Goals ───────────────────────────────────
   {
     keys: ["goal", "writing", "creative", "hobby", "drawing", "painting", "music",
            "guitar", "piano", "photography"],
-    link: { projectName: "Personal Goals", sectionName: "Long-term Goals",
-            label: "Personal Goals › Long-term Goals" },
+    link: { projectName: "Learning & Hobbies", sectionName: "Personal Goals",
+            label: "Learning & Hobbies › Personal Goals" },
   },
-  // ── Day-to-day Logistics > Home & Supplies ───────────────────────────────
+  // ── Day-to-day Logistics > Home Maintenance ───────────────────────────────
   {
-    keys: ["cooking", "cook", "meal", "food", "recipe"],
-    link: { projectName: "Day-to-day Logistics", sectionName: "Home & Supplies",
-            label: "Day-to-day Logistics › Home & Supplies" },
+    keys: ["cleaning", "clean", "laundry", "chores", "tidying", "organiz"],
+    link: { projectName: "Day-to-day Logistics", sectionName: "Home Maintenance",
+            label: "Day-to-day Logistics › Home Maintenance" },
   },
 ];
 

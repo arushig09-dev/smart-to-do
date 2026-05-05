@@ -6,88 +6,95 @@ import {
   ALL_LINK_RULES,
 } from "@/lib/habitLinks";
 
-// Fake user project/section tree — mirrors what the DB returns for a real user
+// Fake user project/section tree — mirrors what userOnboarding.ts creates for a real user
 const USER_PROJECTS = [
   {
     id: 10,
-    name: "Fitness & Wellness",
+    name: "Health & Wellness",
     sections: [
-      { id: 101, name: "Workouts" },
-      { id: 102, name: "Nutrition & Meal Prep" },
-      { id: 103, name: "Sleep & Recovery" },
+      { id: 101, name: "Fitness" },
+      { id: 102, name: "Nutrition" },
+      { id: 103, name: "Appointments" },
       { id: 104, name: "Self-care" },
     ],
   },
   {
     id: 20,
-    name: "Books & Podcasts",
-    sections: [{ id: 201, name: "On the List" }],
+    name: "Learning & Hobbies",
+    sections: [
+      { id: 201, name: "Reading" },
+      { id: 202, name: "Courses" },
+      { id: 203, name: "Hobbies" },
+      { id: 204, name: "Personal Goals" },
+    ],
   },
   {
     id: 30,
-    name: "Courses & Skills",
-    sections: [{ id: 301, name: "In Progress" }],
-  },
-  {
-    id: 40,
-    name: "Personal Goals",
-    sections: [{ id: 401, name: "Long-term Goals" }],
-  },
-  {
-    id: 50,
     name: "Day-to-day Logistics",
-    sections: [{ id: 501, name: "Home & Supplies" }],
+    sections: [
+      { id: 301, name: "Groceries & Shopping" },
+      { id: 302, name: "Home Maintenance" },
+      { id: 303, name: "Orders & Returns" },
+      { id: 304, name: "Other Errands" },
+    ],
   },
 ];
 
 describe("suggestHabitLink — keyword matching", () => {
-  it("'Meditation' → Fitness & Wellness › Self-care", () => {
+  it("'Meditation' → Health & Wellness › Self-care", () => {
     const r = suggestHabitLink("Meditation");
     expect(r).not.toBeNull();
-    expect(r!.projectName).toBe("Fitness & Wellness");
+    expect(r!.projectName).toBe("Health & Wellness");
     expect(r!.sectionName).toBe("Self-care");
   });
 
-  it("'workout' → Fitness & Wellness › Workouts", () => {
+  it("'workout' → Health & Wellness › Fitness", () => {
     const r = suggestHabitLink("workout");
-    expect(r!.sectionName).toBe("Workouts");
+    expect(r!.projectName).toBe("Health & Wellness");
+    expect(r!.sectionName).toBe("Fitness");
   });
 
-  it("'Steps' (walking) → Workouts", () => {
+  it("'Steps' (walking) → Fitness", () => {
     const r = suggestHabitLink("Steps");
-    expect(r!.sectionName).toBe("Workouts");
+    expect(r!.sectionName).toBe("Fitness");
   });
 
-  it("'Hydration' → Nutrition & Meal Prep", () => {
+  it("'Hydration' → Nutrition", () => {
     const r = suggestHabitLink("Hydration");
-    expect(r!.sectionName).toBe("Nutrition & Meal Prep");
+    expect(r!.sectionName).toBe("Nutrition");
   });
 
-  it("'sleep' → Sleep & Recovery", () => {
-    const r = suggestHabitLink("sleep");
-    expect(r!.sectionName).toBe("Sleep & Recovery");
-  });
-
-  it("'no phone' → Sleep & Recovery", () => {
-    const r = suggestHabitLink("no phone");
-    expect(r!.sectionName).toBe("Sleep & Recovery");
-  });
-
-  it("'Reading' → Books & Podcasts › On the List", () => {
-    const r = suggestHabitLink("Reading");
-    expect(r!.projectName).toBe("Books & Podcasts");
-    expect(r!.sectionName).toBe("On the List");
-  });
-
-  it("'language' (Duolingo-style) → Courses & Skills › In Progress", () => {
-    const r = suggestHabitLink("language");
-    expect(r!.projectName).toBe("Courses & Skills");
-    expect(r!.sectionName).toBe("In Progress");
-  });
-
-  it("'cooking' → Day-to-day Logistics › Home & Supplies", () => {
+  it("'cooking' → Nutrition", () => {
     const r = suggestHabitLink("cooking");
-    expect(r!.projectName).toBe("Day-to-day Logistics");
+    expect(r!.sectionName).toBe("Nutrition");
+  });
+
+  it("'sleep' → Self-care", () => {
+    const r = suggestHabitLink("sleep");
+    expect(r!.sectionName).toBe("Self-care");
+  });
+
+  it("'no phone' → Self-care", () => {
+    const r = suggestHabitLink("no phone");
+    expect(r!.sectionName).toBe("Self-care");
+  });
+
+  it("'Reading' → Learning & Hobbies › Reading", () => {
+    const r = suggestHabitLink("Reading");
+    expect(r!.projectName).toBe("Learning & Hobbies");
+    expect(r!.sectionName).toBe("Reading");
+  });
+
+  it("'language' (Duolingo-style) → Learning & Hobbies › Courses", () => {
+    const r = suggestHabitLink("language");
+    expect(r!.projectName).toBe("Learning & Hobbies");
+    expect(r!.sectionName).toBe("Courses");
+  });
+
+  it("'goal' → Learning & Hobbies › Personal Goals", () => {
+    const r = suggestHabitLink("goal");
+    expect(r!.projectName).toBe("Learning & Hobbies");
+    expect(r!.sectionName).toBe("Personal Goals");
   });
 
   it("returns null when no keyword matches", () => {
@@ -116,17 +123,30 @@ describe("resolveLink — maps names → real IDs from user data", () => {
     expect(resolved!.sectionId).toBe(104); // Self-care
   });
 
-  it("resolves workouts correctly", () => {
+  it("resolves fitness correctly", () => {
     const resolved = resolveLink(
-      { projectName: "Fitness & Wellness", sectionName: "Workouts", label: "Fitness & Wellness › Workouts" },
+      { projectName: "Health & Wellness", sectionName: "Fitness", label: "Health & Wellness › Fitness" },
       USER_PROJECTS
     );
     expect(resolved!.sectionId).toBe(101);
   });
 
+  it("resolves nutrition correctly (including cooking)", () => {
+    const suggestion = suggestHabitLink("cooking")!;
+    const resolved = resolveLink(suggestion, USER_PROJECTS);
+    expect(resolved!.projectId).toBe(10);
+    expect(resolved!.sectionId).toBe(102); // Nutrition
+  });
+
+  it("resolves sleep to Self-care", () => {
+    const suggestion = suggestHabitLink("sleep")!;
+    const resolved = resolveLink(suggestion, USER_PROJECTS);
+    expect(resolved!.sectionId).toBe(104); // Self-care
+  });
+
   it("returns null when project name is not in user data", () => {
     const resolved = resolveLink(
-      { projectName: "Nonexistent Project", sectionName: "Workouts", label: "X" },
+      { projectName: "Nonexistent Project", sectionName: "Fitness", label: "X" },
       USER_PROJECTS
     );
     expect(resolved).toBeNull();
@@ -134,7 +154,7 @@ describe("resolveLink — maps names → real IDs from user data", () => {
 
   it("returns null when section name is not in the matched project", () => {
     const resolved = resolveLink(
-      { projectName: "Fitness & Wellness", sectionName: "Ghost Section", label: "X" },
+      { projectName: "Health & Wellness", sectionName: "Ghost Section", label: "X" },
       USER_PROJECTS
     );
     expect(resolved).toBeNull();
@@ -142,7 +162,7 @@ describe("resolveLink — maps names → real IDs from user data", () => {
 
   it("is case-insensitive for both project and section name", () => {
     const resolved = resolveLink(
-      { projectName: "fitness & wellness", sectionName: "workouts", label: "X" },
+      { projectName: "health & wellness", sectionName: "fitness", label: "X" },
       USER_PROJECTS
     );
     expect(resolved).not.toBeNull();
@@ -152,7 +172,7 @@ describe("resolveLink — maps names → real IDs from user data", () => {
   it("preserves the original label string in the resolved object", () => {
     const suggestion = suggestHabitLink("Reading")!;
     const resolved = resolveLink(suggestion, USER_PROJECTS)!;
-    expect(resolved.label).toBe("Books & Podcasts › On the List");
+    expect(resolved.label).toBe("Learning & Hobbies › Reading");
   });
 });
 
@@ -168,15 +188,14 @@ describe("buildLinkOptions — builds live picker options from user projects", (
   });
 
   it("includes all resolvable sections from ALL_LINK_RULES", () => {
-    // ALL_LINK_RULES has 8 unique rules; all should resolve with our full user project set
+    // ALL_LINK_RULES has 7 unique rules; all should resolve with our full user project set
     const opts = buildLinkOptions(USER_PROJECTS);
     expect(opts.length).toBe(ALL_LINK_RULES.length);
   });
 
   it("omits rules whose project doesn't exist in the user's data", () => {
-    const limitedProjects = [USER_PROJECTS[0]]; // Only Fitness & Wellness
+    const limitedProjects = [USER_PROJECTS[0]]; // Only Health & Wellness
     const opts = buildLinkOptions(limitedProjects);
-    // Only Fitness & Wellness sections should appear
     expect(opts.every((o) => o.projectId === 10)).toBe(true);
   });
 
@@ -190,7 +209,7 @@ describe("buildLinkOptions — builds live picker options from user projects", (
   it("each option has correct IDs from the user's actual data, not hardcoded values", () => {
     // Simulate a second user whose IDs are completely different
     const otherUser = [
-      { id: 500, name: "Fitness & Wellness", sections: [{ id: 5001, name: "Workouts" }] },
+      { id: 500, name: "Health & Wellness", sections: [{ id: 5001, name: "Fitness" }] },
     ];
     const opts = buildLinkOptions(otherUser);
     expect(opts[0].projectId).toBe(500);
