@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireUserId } from "@/lib/requireUser";
 
 type FilterJson = {
   dueBefore?: string;
@@ -36,6 +37,9 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { userId, error } = await requireUserId();
+  if (error) return error;
+
   const { id } = await params;
   const viewId = parseInt(id, 10);
   if (isNaN(viewId)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
@@ -63,7 +67,7 @@ export async function GET(
   }
 
   const tasks = await prisma.task.findMany({
-    where,
+    where: { ...where, userId },
     include: {
       project: { select: { id: true, name: true, emoji: true, color: true } },
       section: { select: { id: true, name: true } },

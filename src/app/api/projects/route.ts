@@ -1,12 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireUserId } from "@/lib/requireUser";
 
 export async function GET(req: NextRequest) {
+  const { userId, error } = await requireUserId();
+  if (error) return error;
+
   const { searchParams } = new URL(req.url);
   const includeArchived = searchParams.get("archived") === "true";
 
   const projects = await prisma.project.findMany({
-    where: includeArchived ? {} : { isArchived: false },
+    where: {
+      userId,
+      ...(includeArchived ? {} : { isArchived: false }),
+    },
     include: { sections: { orderBy: { order: "asc" } }, children: true },
     orderBy: { order: "asc" },
   });
@@ -15,6 +22,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const { userId, error } = await requireUserId();
+  if (error) return error;
+
   const body = await req.json();
   const { name, emoji, color, parentId, order, isFavorite } = body;
 
@@ -30,6 +40,7 @@ export async function POST(req: NextRequest) {
       parentId: parentId || null,
       order: order ?? 0,
       isFavorite: !!isFavorite,
+      userId,
     },
   });
 

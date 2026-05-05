@@ -2,9 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useTheme } from "@/contexts/ThemeContext";
-import { suggestHabitLink, ALL_LINK_OPTIONS, type SuggestedLink } from "@/lib/habitLinks";
+import { suggestHabitLink, resolveLink, buildLinkOptions, type ResolvedLink } from "@/lib/habitLinks";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+type UserProject = { id: number; name: string; sections: { id: number; name: string }[] };
 
 type HabitWithMeta = {
   id: number;
@@ -154,10 +156,12 @@ function HabitSetupForm({
   initial,
   onConfirm,
   onCancel,
+  userProjects,
 }: {
   initial: Omit<PendingHabit, "customDays">;
   onConfirm: (h: Omit<PendingHabit, "customDays">) => void;
   onCancel: () => void;
+  userProjects: UserProject[];
 }) {
   const { theme } = useTheme();
   const [name, setName]       = useState(initial.name);
@@ -171,22 +175,26 @@ function HabitSetupForm({
   const [linkedLabel, setLinkedLabel]         = useState<string | null>(initial.linkedLabel);
   const [showLinkPicker, setShowLinkPicker]   = useState(false);
 
+  const linkOptions = buildLinkOptions(userProjects);
+
   // Auto-update link suggestion when name changes
   function handleNameChange(val: string) {
     setName(val);
     if (!goal || goal === initial.goal) setGoal(getGoal(val));
-    // Only auto-suggest if user hasn't manually overridden
     if (!linkedSectionId) {
       const suggestion = suggestHabitLink(val);
       if (suggestion) {
-        setLinkedProjectId(suggestion.projectId);
-        setLinkedSectionId(suggestion.sectionId);
-        setLinkedLabel(suggestion.label);
+        const resolved = resolveLink(suggestion, userProjects);
+        if (resolved) {
+          setLinkedProjectId(resolved.projectId);
+          setLinkedSectionId(resolved.sectionId);
+          setLinkedLabel(resolved.label);
+        }
       }
     }
   }
 
-  function applyLink(link: SuggestedLink | null) {
+  function applyLink(link: ResolvedLink | null) {
     setLinkedProjectId(link?.projectId ?? null);
     setLinkedSectionId(link?.sectionId ?? null);
     setLinkedLabel(link?.label ?? null);
@@ -360,7 +368,7 @@ function HabitSetupForm({
             >
               None
             </button>
-            {ALL_LINK_OPTIONS.map((opt) => (
+            {linkOptions.map((opt) => (
               <button
                 key={opt.sectionId}
                 onClick={() => applyLink(opt)}
@@ -402,17 +410,26 @@ function HabitSetupForm({
 export default function HabitTracker() {
   const { theme } = useTheme();
   const [habits, setHabits] = useState<HabitWithMeta[]>([]);
+  const [userProjects, setUserProjects] = useState<UserProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [pendingHabit, setPendingHabit] = useState<Omit<PendingHabit, "customDays"> | null>(null);
+  const [addError, setAddError] = useState<string | null>(null);
   const days = currentWeekDays(); // Mon–Sun of this week
 
   async function load() {
     setLoading(true);
     try {
-      const res = await fetch("/api/habits");
-      if (!res.ok) throw new Error("Failed");
-      const data = await res.json();
-      setHabits(Array.isArray(data) ? data : []);
+      const [habitsRes, projectsRes] = await Promise.all([
+        fetch("/api/habits"),
+        fetch("/api/projects"),
+      ]);
+      if (!habitsRes.ok) throw new Error("Failed");
+      const [habitsData, projectsData] = await Promise.all([
+        habitsRes.json(),
+        projectsRes.ok ? projectsRes.json() : [],
+      ]);
+      setHabits(Array.isArray(habitsData) ? habitsData : []);
+      setUserProjects(Array.isArray(projectsData) ? projectsData : []);
     } catch {
       setHabits([]);
     } finally {
@@ -435,7 +452,8 @@ export default function HabitTracker() {
   }
 
   async function confirmAdd(h: Omit<PendingHabit, "customDays">) {
-    await fetch("/api/habits", {
+    setAddError(null);
+    const res = await fetch("/api/habits", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -449,6 +467,11 @@ export default function HabitTracker() {
         linkedSectionId: h.linkedSectionId || null,
       }),
     });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      setAddError(body?.error ?? "Failed to add habit. Please try again.");
+      return;
+    }
     setPendingHabit(null);
     load();
   }
@@ -471,12 +494,13 @@ export default function HabitTracker() {
   function startAddSuggested(h: typeof DEFAULT_HABITS[0]) {
     const freq = defaultFreq(h.name);
     const suggestion = suggestHabitLink(h.name);
+    const resolved = suggestion ? resolveLink(suggestion, userProjects) : null;
     setPendingHabit({
       name: h.name, emoji: h.emoji, color: h.color,
       goal: getGoal(h.name),
-      linkedProjectId: suggestion?.projectId ?? null,
-      linkedSectionId: suggestion?.sectionId ?? null,
-      linkedLabel: suggestion?.label ?? null,
+      linkedProjectId: resolved?.projectId ?? null,
+      linkedSectionId: resolved?.sectionId ?? null,
+      linkedLabel: resolved?.label ?? null,
       ...freq,
     });
   }
@@ -647,11 +671,17 @@ export default function HabitTracker() {
 
             {/* ── Add habit section ── */}
             <div className="px-4 sm:px-6 pb-6">
+              {addError && (
+                <div className="mb-3 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-xs text-red-600 dark:text-red-400">
+                  {addError}
+                </div>
+              )}
               {pendingHabit ? (
                 <HabitSetupForm
                   initial={pendingHabit}
                   onConfirm={confirmAdd}
-                  onCancel={() => setPendingHabit(null)}
+                  onCancel={() => { setPendingHabit(null); setAddError(null); }}
+                  userProjects={userProjects}
                 />
               ) : (
                 <button

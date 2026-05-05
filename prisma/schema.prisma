@@ -12,7 +12,8 @@ model User {
   name          String
   email         String         @unique
   passwordHash  String?
-  persona       String?
+  image         String?        // Google avatar URL
+  persona       String?        // TODO: Phase 4 - persona onboarding
   createdAt     DateTime       @default(now())
 
   projects      Project[]

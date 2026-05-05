@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireUserId } from "@/lib/requireUser";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { userId, error } = await requireUserId();
+  if (error) return error;
+
   const { id } = await params;
   const habitId = parseInt(id, 10);
   if (isNaN(habitId)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
@@ -19,15 +23,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.isArchived !== undefined) data.isArchived = !!body.isArchived;
   if (body.order !== undefined) data.order = body.order;
 
-  const habit = await prisma.habit.update({ where: { id: habitId }, data });
+  const habit = await prisma.habit.update({ where: { id: habitId, userId }, data });
   return NextResponse.json(habit);
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { userId, error } = await requireUserId();
+  if (error) return error;
+
   const { id } = await params;
   const habitId = parseInt(id, 10);
   if (isNaN(habitId)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
 
-  await prisma.habit.delete({ where: { id: habitId } });
+  await prisma.habit.delete({ where: { id: habitId, userId } });
   return NextResponse.json({ ok: true });
 }

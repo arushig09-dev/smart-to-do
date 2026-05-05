@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { suggestPriority } from "@/lib/priority";
+import { requireUserId } from "@/lib/requireUser";
 
 export async function GET(req: NextRequest) {
+  const { userId, error } = await requireUserId();
+  if (error) return error;
+
   const { searchParams } = new URL(req.url);
   const view = searchParams.get("view") || "inbox";
   const q = searchParams.get("q") || "";
@@ -11,7 +15,7 @@ export async function GET(req: NextRequest) {
   const labelId = searchParams.get("labelId");
   const parentTaskId = searchParams.get("parentTaskId");
 
-  const where: Record<string, unknown> = {};
+  const where: Record<string, unknown> = { userId };
   if (q) where.title = { contains: q, mode: "insensitive" };
 
   if (projectId) where.projectId = parseInt(projectId, 10);
@@ -29,7 +33,6 @@ export async function GET(req: NextRequest) {
       where.status = "open";
       where.isBlocked = false;
     } else if (view === "todo") {
-      // All open tasks — client groups them into Today vs Upcoming
       where.status = "open";
     }
   }
@@ -56,6 +59,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const { userId, error } = await requireUserId();
+  if (error) return error;
+
   const body = await req.json();
   const { title, notes, dueAt, manualPriority, isBlocked, projectId, sectionId, parentTaskId, labelIds } = body;
 
@@ -84,6 +90,7 @@ export async function POST(req: NextRequest) {
       projectId: projectId ? parseInt(projectId, 10) : null,
       sectionId: sectionId ? parseInt(sectionId, 10) : null,
       parentTaskId: parentTaskId ? parseInt(parentTaskId, 10) : null,
+      userId,
       labels: labelIds?.length
         ? { create: labelIds.map((id: number) => ({ labelId: id })) }
         : undefined,

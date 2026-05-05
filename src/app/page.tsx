@@ -18,12 +18,16 @@ export default function Home() {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [taskError, setTaskError] = useState<string | null>(null);
 
   // Fetch flat project list for detail panel dropdowns
   useEffect(() => {
     fetch("/api/projects")
-      .then((r) => r.json())
-      .then(setAllProjects);
+      .then((r) => {
+        if (!r.ok) return [];
+        return r.json();
+      })
+      .then((data) => setAllProjects(Array.isArray(data) ? data : []));
   }, []);
 
   // Fetch tasks whenever the active view changes
@@ -70,22 +74,32 @@ export default function Home() {
   }, [activeView, allProjects]);
 
   async function handleAddTask(title: string, sectionId?: number, projectId?: number) {
-    const parseRes = await fetch(
-      `/api/parse?text=${encodeURIComponent(title)}`
-    );
-    const parsed = await parseRes.json();
+    setTaskError(null);
+    try {
+      const parseRes = await fetch(`/api/parse?text=${encodeURIComponent(title)}`);
+      const parsed = parseRes.ok ? await parseRes.json() : {};
 
-    await fetch("/api/tasks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: parsed.title ?? title,
-        dueAt: parsed.dueAt ?? null,
-        manualPriority: parsed.manualPriority ?? null,
-        projectId: projectId ?? (activeView.type === "project" ? activeView.id : null),
-        sectionId: sectionId ?? null,
-      }),
-    });
+      const res = await fetch("/api/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: parsed.title ?? title,
+          dueAt: parsed.dueAt ?? null,
+          manualPriority: parsed.manualPriority ?? null,
+          projectId: projectId ?? (activeView.type === "project" ? activeView.id : null),
+          sectionId: sectionId ?? null,
+        }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setTaskError(body?.error ?? "Failed to add task. Please try again.");
+        return;
+      }
+    } catch {
+      setTaskError("Failed to add task. Please check your connection.");
+      return;
+    }
 
     fetchTasks();
   }
@@ -170,10 +184,14 @@ export default function Home() {
             </svg>
           </button>
           <span className={`w-6 h-6 rounded-md ${theme.brand} flex items-center justify-center text-white text-[10px] font-bold select-none`}>
-            ST
+            <svg width="14" height="14" viewBox="0 0 36 36" fill="none">
+              <path d="M24 12.5C22.3 11 20.3 10 18 10C13.6 10 10 13.6 10 18C10 22.4 13.6 26 18 26C20.3 26 22.3 25 24 23.5"
+                stroke="white" strokeWidth="2.8" strokeLinecap="round" fill="none"/>
+              <circle cx="25.5" cy="18" r="2" fill="white"/>
+            </svg>
           </span>
           <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate flex-1">
-            Smart Todo
+            Claro
           </span>
         </div>
 
@@ -191,17 +209,25 @@ export default function Home() {
             Loading…
           </div>
         ) : (
-          <TaskList
-            activeView={activeView}
-            tasks={tasks}
-            sections={sections}
-            projects={allProjects}
-            selectedId={selectedTask?.id ?? null}
-            onSelectTask={setSelectedTask}
-            onCompleteTask={handleCompleteTask}
-            onDeleteTask={handleDeleteTask}
-            onAddTask={handleAddTask}
-          />
+          <>
+            {taskError && (
+              <div className="mx-4 mt-3 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-xs text-red-600 dark:text-red-400 flex items-center justify-between gap-2">
+                <span>{taskError}</span>
+                <button onClick={() => setTaskError(null)} className="text-red-400 hover:text-red-600 transition flex-shrink-0">✕</button>
+              </div>
+            )}
+            <TaskList
+              activeView={activeView}
+              tasks={tasks}
+              sections={sections}
+              projects={allProjects}
+              selectedId={selectedTask?.id ?? null}
+              onSelectTask={setSelectedTask}
+              onCompleteTask={handleCompleteTask}
+              onDeleteTask={handleDeleteTask}
+              onAddTask={handleAddTask}
+            />
+          </>
         )}
       </main>
 

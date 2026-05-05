@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireUserId } from "@/lib/requireUser";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { userId, error } = await requireUserId();
+  if (error) return error;
+
   const { id } = await params;
   const habitId = parseInt(id, 10);
   if (isNaN(habitId)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
@@ -9,7 +13,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  // Toggle: if already logged today, delete it; otherwise create
   const existing = await prisma.habitEntry.findUnique({
     where: { habitId_date: { habitId, date: today } },
   });
@@ -19,6 +22,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ logged: false });
   }
 
-  await prisma.habitEntry.create({ data: { habitId, date: today } });
+  await prisma.habitEntry.create({ data: { habitId, date: today, userId } });
   return NextResponse.json({ logged: true });
 }

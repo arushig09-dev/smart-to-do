@@ -1,6 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { useSession, signOut } from "next-auth/react";
+import Image from "next/image";
 import type { Project, ProjectNode, SmartView, ActiveView } from "@/types";
 import { useTheme } from "@/contexts/ThemeContext";
 
@@ -90,15 +92,15 @@ export default function Sidebar({ activeView, onViewChange }: { activeView: Acti
   const [smartViews, setSmartViews] = useState<SmartView[]>([]);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [collapsed, setCollapsed] = useState(false);
-  const [showThemePicker, setShowThemePicker] = useState(false);
 
   useEffect(() => {
-    Promise.all([fetch("/api/projects").then((r) => r.json()), fetch("/api/smart-views").then((r) => r.json())])
-      .then(([projs, views]) => {
-        setProjects(projs);
-        setSmartViews(views);
-        // Start collapsed — user expands projects they want to see
-      });
+    Promise.all([
+      fetch("/api/projects").then((r) => r.ok ? r.json() : []),
+      fetch("/api/smart-views").then((r) => r.ok ? r.json() : []),
+    ]).then(([projs, views]) => {
+      setProjects(Array.isArray(projs) ? projs : []);
+      setSmartViews(Array.isArray(views) ? views : []);
+    });
   }, []);
 
   const tree = buildTree(projects);
@@ -141,11 +143,17 @@ export default function Sidebar({ activeView, onViewChange }: { activeView: Acti
           className={`w-7 h-7 rounded-lg ${theme.brand} flex items-center justify-center text-white text-xs font-bold select-none flex-shrink-0`}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
         >
-          {collapsed ? "»" : "ST"}
+          {collapsed ? "»" : (
+            <svg width="16" height="16" viewBox="0 0 36 36" fill="none">
+              <path d="M24 12.5C22.3 11 20.3 10 18 10C13.6 10 10 13.6 10 18C10 22.4 13.6 26 18 26C20.3 26 22.3 25 24 23.5"
+                stroke="white" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
+              <circle cx="25.5" cy="18" r="2" fill="white"/>
+            </svg>
+          )}
         </button>
         {!collapsed && (
           <span className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm tracking-tight flex-1 truncate">
-            Smart Todo
+            Claro
           </span>
         )}
       </div>
@@ -182,34 +190,78 @@ export default function Sidebar({ activeView, onViewChange }: { activeView: Acti
         )}
       </nav>
 
-      {/* Theme picker */}
-      {!collapsed && (
-        <div className={`px-3 pb-4 pt-2 border-t ${theme.borderColor} flex-shrink-0`}>
-          <button
-            onClick={() => setShowThemePicker((s) => !s)}
-            className="w-full flex items-center gap-2 text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition py-1"
-          >
-            {/* Two-tone mini swatch */}
-            <span className="w-5 h-3.5 rounded overflow-hidden flex flex-shrink-0 ring-1 ring-black/10">
-              <span className={`flex-1 ${theme.swatchSidebar}`} />
-              <span className={`flex-1 ${theme.swatchMain}`} />
-            </span>
-            <span>Theme: {theme.name}</span>
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none" className={`ml-auto transition-transform ${showThemePicker ? "rotate-180" : ""}`}>
-              <path d="M2 3.5l3 3 3-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-          {showThemePicker && (
-            <div className="mt-2 flex gap-2 flex-wrap">
+      {/* Profile menu — handles theme, preferences, and logout */}
+      <ProfileMenu collapsed={collapsed} />
+    </aside>
+  );
+}
+
+// ─── ProfileMenu ──────────────────────────────────────────────────────────────
+
+function ProfileMenu({ collapsed }: { collapsed: boolean }) {
+  const { data: session } = useSession();
+  const { theme, themes, setThemeId } = useTheme();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  // Preferences stored in localStorage
+  const [defaultView, setDefaultViewState] = useState("todo");
+  const [weekStart, setWeekStartState]     = useState("monday");
+  const [compact, setCompactState]         = useState(false);
+
+  useEffect(() => {
+    setDefaultViewState(localStorage.getItem("pref_defaultView") ?? "todo");
+    setWeekStartState(localStorage.getItem("pref_weekStart")    ?? "monday");
+    setCompactState((localStorage.getItem("pref_compact") ?? "false") === "true");
+  }, []);
+
+  const setPref = (key: string, value: string) => {
+    localStorage.setItem(key, value);
+    if (key === "pref_defaultView") setDefaultViewState(value);
+    if (key === "pref_weekStart")   setWeekStartState(value);
+    if (key === "pref_compact")     setCompactState(value === "true");
+  };
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const user = session?.user;
+  if (!user) return null;
+
+  const initials = (user.name ?? user.email ?? "?")
+    .split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+
+  return (
+    <div ref={ref} className={`relative border-t ${theme.borderColor} flex-shrink-0`}>
+
+      {/* Popover panel */}
+      {open && (
+        <div className="absolute bottom-full left-0 right-0 mb-1 mx-2 z-50 bg-white dark:bg-zinc-900 rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-700 overflow-hidden">
+
+          {/* Identity header */}
+          <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 flex items-center gap-3">
+            <div className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 overflow-hidden">
+              {user.image ? <img src={user.image} alt="" className="w-full h-full object-cover" /> : initials}
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-zinc-900 dark:text-zinc-100 truncate">{user.name ?? "You"}</p>
+              <p className="text-xs text-zinc-400 truncate">{user.email}</p>
+            </div>
+          </div>
+
+          {/* Appearance */}
+          <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400 mb-2">Appearance</p>
+            <div className="flex gap-2 flex-wrap">
               {themes.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => { setThemeId(t.id); setShowThemePicker(false); }}
-                  title={t.name}
-                  className={`flex flex-col items-center gap-1 group transition-transform hover:scale-105 ${theme.id === t.id ? "opacity-100" : "opacity-70 hover:opacity-100"}`}
-                >
-                  {/* Two-tone swatch tile */}
-                  <span className={`w-9 h-6 rounded-md overflow-hidden flex ring-2 ${theme.id === t.id ? "ring-zinc-500 dark:ring-zinc-300" : "ring-transparent"}`}>
+                <button key={t.id} onClick={() => setThemeId(t.id)} title={t.name}
+                  className={`flex flex-col items-center gap-1 transition-transform hover:scale-105 ${theme.id === t.id ? "opacity-100" : "opacity-60 hover:opacity-100"}`}>
+                  <span className={`w-9 h-6 rounded-md overflow-hidden flex ring-2 ${theme.id === t.id ? "ring-indigo-500" : "ring-transparent"}`}>
                     <span className={`w-2/5 ${t.swatchSidebar}`} />
                     <span className={`w-3/5 ${t.swatchMain}`} />
                   </span>
@@ -217,9 +269,86 @@ export default function Sidebar({ activeView, onViewChange }: { activeView: Acti
                 </button>
               ))}
             </div>
-          )}
+          </div>
+
+          {/* Preferences */}
+          <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 space-y-3">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-zinc-400">Preferences</p>
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-zinc-600 dark:text-zinc-400">Open app to</span>
+              <select value={defaultView} onChange={(e) => setPref("pref_defaultView", e.target.value)}
+                className="text-xs px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                <option value="todo">Your To-do List</option>
+                <option value="today">Today</option>
+                <option value="high-priority">High Priority</option>
+                <option value="inbox">Inbox</option>
+              </select>
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs text-zinc-600 dark:text-zinc-400">Week starts on</span>
+              <div className="flex rounded-md overflow-hidden border border-zinc-200 dark:border-zinc-700 text-xs">
+                {(["monday", "sunday"] as const).map((d) => (
+                  <button key={d} onClick={() => setPref("pref_weekStart", d)}
+                    className={`px-2.5 py-1 transition-colors ${weekStart === d ? "bg-indigo-600 text-white" : "bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-50 dark:hover:bg-zinc-700"}`}>
+                    {d.charAt(0).toUpperCase() + d.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <span className="text-xs text-zinc-600 dark:text-zinc-400">Compact task rows</span>
+                <p className="text-[10px] text-zinc-400 dark:text-zinc-500 mt-0.5">Fits more tasks on screen</p>
+              </div>
+              <button onClick={() => setPref("pref_compact", compact ? "false" : "true")}
+                style={{ minWidth: "2rem", height: "1.125rem" }}
+                className={`relative rounded-full transition-colors flex-shrink-0 ${compact ? "bg-indigo-600" : "bg-zinc-200 dark:bg-zinc-700"}`}>
+                <span style={{ width: "0.875rem", height: "0.875rem" }}
+                  className={`absolute top-0.5 left-0.5 rounded-full bg-white shadow transition-transform ${compact ? "translate-x-3.5" : ""}`} />
+              </button>
+            </div>
+          </div>
+
+          {/* Log Out */}
+          <button onClick={() => signOut({ callbackUrl: "/login" })}
+            className="w-full flex items-center gap-2.5 px-4 py-3 text-sm font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <polyline points="16 17 21 12 16 7" />
+              <line x1="21" y1="12" x2="9" y2="12" />
+            </svg>
+            Log Out
+          </button>
         </div>
       )}
-    </aside>
+
+      {/* Avatar trigger */}
+      {collapsed ? (
+        <div className="flex justify-center py-3">
+          <button onClick={() => setOpen((o) => !o)} title="Profile & settings"
+            className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-semibold overflow-hidden hover:ring-2 hover:ring-indigo-400 transition">
+            {user.image ? <img src={user.image} alt="" className="w-full h-full object-cover" /> : initials}
+          </button>
+        </div>
+      ) : (
+        <button onClick={() => setOpen((o) => !o)}
+          className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
+          <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 overflow-hidden">
+            {user.image ? <img src={user.image} alt="" className="w-full h-full object-cover" /> : initials}
+          </div>
+          <div className="flex-1 min-w-0 text-left">
+            <p className="text-xs font-medium text-zinc-800 dark:text-zinc-100 truncate leading-tight">{user.name ?? "You"}</p>
+            <p className="text-[10px] text-zinc-400 truncate leading-tight">{user.email}</p>
+          </div>
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"
+            className={`text-zinc-400 flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`}>
+            <path d="M2 4.5l4 3 4-3" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+      )}
+    </div>
   );
 }

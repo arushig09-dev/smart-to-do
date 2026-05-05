@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireUserId } from "@/lib/requireUser";
 
 export interface CategorizeResult {
   projectId: number;
@@ -106,13 +107,16 @@ function domainBonus(titleTokens: string[], domainName: string): number {
 }
 
 export async function POST(req: NextRequest) {
+  const { userId, error } = await requireUserId();
+  if (error) return error;
+
   const body = await req.json().catch(() => ({}));
   const title: string = body.title ?? "";
 
   if (!title.trim()) return NextResponse.json(null);
 
   const projects = await prisma.project.findMany({
-    where: { isArchived: false },
+    where: { isArchived: false, userId },
     include: { sections: { orderBy: { order: "asc" } } },
     orderBy: { order: "asc" },
   });

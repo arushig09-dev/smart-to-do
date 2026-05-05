@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireUserId } from "@/lib/requireUser";
 
 function todayStart() {
   const d = new Date();
@@ -20,7 +21,6 @@ function calcStreak(entries: { date: Date | string }[]): number {
       streak++;
       cursor = cursor - 86400000;
     } else if (d === cursor - 86400000) {
-      // allow yesterday to count if today not yet logged
       streak++;
       cursor = d - 86400000;
     } else {
@@ -31,21 +31,22 @@ function calcStreak(entries: { date: Date | string }[]): number {
 }
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const sectionId  = searchParams.get("sectionId");
-  const projectId  = searchParams.get("projectId");
+  const { userId, error } = await requireUserId();
+  if (error) return error;
 
-  const where: Record<string, unknown> = { isArchived: false };
-  if (sectionId)  where.linkedSectionId  = parseInt(sectionId,  10);
-  if (projectId)  where.linkedProjectId  = parseInt(projectId, 10);
+  const { searchParams } = new URL(req.url);
+  const sectionId = searchParams.get("sectionId");
+  const projectId = searchParams.get("projectId");
+
+  const where: Record<string, unknown> = { isArchived: false, userId };
+  if (sectionId) where.linkedSectionId = parseInt(sectionId, 10);
+  if (projectId) where.linkedProjectId = parseInt(projectId, 10);
 
   const habits = await prisma.habit.findMany({
     where,
     include: {
       entries: {
-        where: {
-          date: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
-        },
+        where: { date: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } },
         orderBy: { date: "desc" },
       },
     },
@@ -64,6 +65,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const { userId, error } = await requireUserId();
+  if (error) return error;
+
   const body = await req.json();
   const { name, emoji, color, targetDays, goal, daysOfWeek, linkedProjectId, linkedSectionId } = body;
   if (!name?.trim()) return NextResponse.json({ error: "Name required" }, { status: 400 });
@@ -78,6 +82,7 @@ export async function POST(req: NextRequest) {
       daysOfWeek: daysOfWeek || null,
       linkedProjectId: linkedProjectId || null,
       linkedSectionId: linkedSectionId || null,
+      userId,
     },
     include: { entries: true },
   });

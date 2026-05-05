@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { requireUserId } from "@/lib/requireUser";
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { userId, error } = await requireUserId();
+  if (error) return error;
+
   const { id } = await params;
   const projectId = parseInt(id, 10);
   if (isNaN(projectId)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
@@ -20,7 +24,7 @@ export async function PATCH(
   if (body.order !== undefined) data.order = body.order;
   if (body.parentId !== undefined) data.parentId = body.parentId || null;
 
-  const project = await prisma.project.update({ where: { id: projectId }, data });
+  const project = await prisma.project.update({ where: { id: projectId, userId }, data });
   return NextResponse.json(project);
 }
 
@@ -28,10 +32,13 @@ export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { userId, error } = await requireUserId();
+  if (error) return error;
+
   const { id } = await params;
   const projectId = parseInt(id, 10);
   if (isNaN(projectId)) return NextResponse.json({ error: "Invalid id" }, { status: 400 });
 
-  await prisma.project.delete({ where: { id: projectId } });
+  await prisma.project.delete({ where: { id: projectId, userId } });
   return NextResponse.json({ ok: true });
 }
