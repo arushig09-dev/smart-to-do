@@ -293,12 +293,15 @@ function AddTaskInline({
   triggerLabel,
   showCategorize = false,
   projects = [],
+  defaultDueToday = false,
 }: {
   onAdd: (title: string, sectionId?: number, projectId?: number, extras?: AddExtras) => void;
   contextLabel: string;
   triggerLabel?: string;
   showCategorize?: boolean;
   projects?: Project[];
+  /** When true, pre-fill today's date if NLP finds no date in the task text. */
+  defaultDueToday?: boolean;
 }) {
   const { theme } = useTheme();
   const [open, setOpen] = useState(false);
@@ -390,8 +393,13 @@ function AddTaskInline({
       if (parsed.isThisWeek && categorizeData) {
         const isWork = isWorkProject(categorizeData.topLevelProjectName);
         setSelDueAt(toDateInputValue(isWork ? thisWeekFriday() : thisWeekSunday()));
-      } else {
+      } else if (pDueAt) {
         setSelDueAt(toDateInputValue(pDueAt));
+      } else if (defaultDueToday) {
+        // No date in task text but we're in the Today section — pre-fill today
+        setSelDueAt(toDateInputValue(new Date()));
+      } else {
+        setSelDueAt("");
       }
 
       // Auto-suggest priority if the user didn't type one
@@ -562,10 +570,17 @@ function AddTaskInline({
       {step === "confirm" && (
         <div className="mt-1 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 p-3 space-y-3">
 
-          {/* Task title recap */}
-          <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-            <span className="font-medium text-zinc-700 dark:text-zinc-200">"{cleanTitle || text.trim()}"</span>
-          </p>
+          {/* ── Editable task title ── */}
+          <div className="space-y-1">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400">📝 Task</p>
+            <input
+              value={cleanTitle || text.trim()}
+              onChange={(e) => setCleanTitle(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") confirmAdd(); if (e.key === "Escape") reset(); }}
+              className="w-full text-sm px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-zinc-400"
+              placeholder="Task description"
+            />
+          </div>
 
           {/* ── Work / Personal chips ── */}
           {topLevelProjects.length > 0 && (
@@ -700,6 +715,14 @@ function AddTaskInline({
             >
               Add without details
             </button>
+            <button
+              onClick={reset}
+              className="ml-auto text-xs text-red-400 hover:text-red-600 dark:hover:text-red-400 transition px-2 py-1.5 flex items-center gap-1"
+              title="Discard task"
+            >
+              <svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round"/></svg>
+              Discard
+            </button>
           </div>
         </div>
       )}
@@ -782,6 +805,7 @@ export default function TaskList({
               triggerLabel="Add for today"
               showCategorize
               projects={projects}
+              defaultDueToday
             />
           </div>
 
