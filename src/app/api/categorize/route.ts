@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUserId } from "@/lib/requireUser";
+import OpenAI from "openai";
 
 export interface CategorizeResult {
   projectId: number;
@@ -9,14 +10,13 @@ export interface CategorizeResult {
   sectionId: number | null;
   sectionName: string | null;
   confidence: number;
-  /** Root ancestor project (e.g. "Work", "Personal") — null if project is already top-level */
   topLevelProjectId: number;
   topLevelProjectName: string;
   topLevelProjectEmoji: string | null;
 }
 
-// Maps common task words to project/section domain names for bonus scoring.
-// Ordered from most specific to most general.
+// ─── Keyword fallback scoring ─────────────────────────────────────────────────
+
 const DOMAIN_HINTS: { words: string[]; domains: string[] }[] = [
   {
     words: ["meeting", "prd", "sprint", "okr", "review", "deploy", "stakeholder",
@@ -53,7 +53,7 @@ const DOMAIN_HINTS: { words: string[]; domains: string[] }[] = [
     words: ["tax", "bill", "payment", "budget", "expense",
       "subscription", "invoice", "bank", "finance", "receipt", "reimburse",
       "reimbursement", "hsa", "fsa", "401k", "ira", "claim", "deductible",
-      "copay", "flexible", "savings account", "direct deposit", "wire transfer"],
+      "copay", "savings account", "direct deposit", "wire transfer"],
     domains: ["finance", "admin", "money", "bills", "taxes"],
   },
   {
@@ -86,24 +86,16 @@ const DOMAIN_HINTS: { words: string[]; domains: string[] }[] = [
   },
 ];
 
-// Words that carry no category signal — common in task titles but should not
-// influence which project/section wins (e.g. "fill form this week" would
-// otherwise score highly against a "This Week" section purely on "this"+"week").
 const STOP_WORDS = new Set([
   "the", "and", "but", "not", "for", "are", "was", "its", "you", "can",
   "all", "had", "one", "any", "this", "that", "with", "from", "have",
   "will", "she", "his", "her", "our", "out", "who", "get", "use", "new",
-  "add", "out", "via", "per", "etc", "put",
-  // time / schedule filler words
-  "week", "next", "last", "soon", "today", "date", "time", "now", "ago",
-  "set", "due",
+  "add", "via", "per", "etc", "put",
+  "week", "next", "last", "soon", "today", "date", "time", "now", "ago", "set", "due",
 ]);
 
 function tokenize(text: string): string[] {
-  return text
-    .toLowerCase()
-    .split(/\W+/)
-    .filter((w) => w.length >= 3 && !STOP_WORDS.has(w));
+  return text.toLowerCase().split(/\W+/).filter((w) => w.length >= 3 && !STOP_WORDS.has(w));
 }
 
 function scoreName(titleTokens: string[], name: string): number {
@@ -112,12 +104,9 @@ function scoreName(titleTokens: string[], name: string): number {
   for (const tt of titleTokens) {
     for (const nt of nameTokens) {
       if (nt === tt) {
-        score += tt.length * 2;                             // exact word match — full credit
-      } else if (
-        (nt.includes(tt) || tt.includes(nt)) &&
-        Math.min(tt.length, nt.length) >= 5                 // partial match only for longer words
-      ) {
-        score += Math.min(tt.length, nt.length);            // prevents "plan"→"planning" false hit
+        score += tt.length * 2;
+      } else if ((nt.includes(tt) || tt.includes(nt)) && Math.min(tt.length, nt.length) >= 5) {
+        score += Math.min(tt.length, nt.length);
       }
     }
   }
@@ -132,23 +121,61 @@ function domainBonus(titleTokens: string[], domainName: string): number {
     if (!matchesDomain) continue;
     for (const tt of titleTokens) {
       if (hint.words.some((w) => {
-        // Multi-word hint phrase (e.g. "meal prep", "post office")
         if (w.includes(" ")) {
           return w.split(" ").some(
             (wt) => wt === tt || (tt.length >= 4 && wt.length >= 4 && (tt.includes(wt) || wt.includes(tt)))
           );
         }
-        // Single-word hint: exact match OR substring if both words are ≥ 4 chars
-        // This lets "reimbursement" match hint "reimburse", "groceries" match "grocery", etc.
         return w === tt || (tt.length >= 4 && w.length >= 4 && (tt.includes(w) || w.includes(tt)));
       })) {
         bonus += 4;
-        break; // one bonus per domain group per token
+        break;
       }
     }
   }
   return bonus;
 }
+
+// ─── Embedding helpers ────────────────────────────────────────────────────────
+
+function cosine(a: number[], b: number[]): number {
+  let dot = 0, magA = 0, magB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    magA += a[i] * a[i];
+    magB += b[i] * b[i];
+  }
+  return dot / (Math.sqrt(magA) * Math.sqrt(magB) || 1);
+}
+
+function buildCandidateText(topLevelName: string, projectName: string, sectionName: string | null): string {
+  const parts = [topLevelName, projectName];
+  if (sectionName) parts.push(sectionName);
+  return parts.join(" > ");
+}
+
+// ─── Correction boost ─────────────────────────────────────────────────────────
+// When a user has previously overridden a suggestion, boost the chosen project
+// for future tasks with overlapping tokens (Jaccard similarity × 6 points).
+
+type CorrRow = { titleTokens: string; chosenProjId: number; chosenSectId: number | null };
+
+function correctionBoost(
+  tokens: string[],
+  corr: CorrRow,
+  candidateProjId: number,
+  candidateSectId: number | null
+): number {
+  if (corr.chosenProjId !== candidateProjId) return 0;
+  if (corr.chosenSectId !== null && corr.chosenSectId !== candidateSectId) return 0;
+  let pastTokens: string[];
+  try { pastTokens = JSON.parse(corr.titleTokens); } catch { return 0; }
+  if (pastTokens.length === 0) return 0;
+  const overlap = tokens.filter((t) => pastTokens.includes(t)).length;
+  return (overlap / Math.max(pastTokens.length, tokens.length)) * 6;
+}
+
+// ─── Main handler ─────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
   const { userId, error } = await requireUserId();
@@ -160,16 +187,20 @@ export async function POST(req: NextRequest) {
 
   if (!title.trim()) return NextResponse.json(null);
 
-  const projects = await prisma.project.findMany({
-    where: { isArchived: false, userId },
-    include: { sections: { orderBy: { order: "asc" } } },
-    orderBy: { order: "asc" },
-  });
+  const [projects, corrections] = await Promise.all([
+    prisma.project.findMany({
+      where: { isArchived: false, userId },
+      include: { sections: { orderBy: { order: "asc" } } },
+      orderBy: { order: "asc" },
+    }),
+    prisma.categoryCorrection.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: 200,
+    }),
+  ]);
 
-  // Build a parent-lookup map so we can walk up the tree to find root ancestors
-  const parentMap = new Map<number, number | null>(
-    projects.map((p) => [p.id, p.parentId])
-  );
+  const parentMap = new Map<number, number | null>(projects.map((p) => [p.id, p.parentId]));
 
   function getRootId(projectId: number): number {
     let current = projectId;
@@ -181,60 +212,103 @@ export async function POST(req: NextRequest) {
     return current;
   }
 
-  const titleTokens = tokenize(title);
-  let bestScore = 0;
-  let best: CategorizeResult | null = null;
+  type Candidate = {
+    projectId: number; projectName: string; projectEmoji: string | null;
+    sectionId: number | null; sectionName: string | null;
+    rootId: number; candidateText: string;
+  };
 
+  const candidates: Candidate[] = [];
   for (const project of projects) {
-    // If a top-level filter is set, skip projects not under that root
-    if (filterTopLevelId !== undefined && getRootId(project.id) !== filterTopLevelId) {
-      continue;
-    }
-
-    const projectScore =
-      scoreName(titleTokens, project.name) +
-      domainBonus(titleTokens, project.name);
-
+    if (filterTopLevelId !== undefined && getRootId(project.id) !== filterTopLevelId) continue;
+    if (project.parentId === null) continue; // skip root nodes
     const rootId = getRootId(project.id);
     const rootProject = projects.find((p) => p.id === rootId) ?? project;
 
     if (project.sections.length > 0) {
       for (const section of project.sections) {
-        const sectionScore =
-          scoreName(titleTokens, section.name) +
-          domainBonus(titleTokens, section.name);
-        const total = projectScore + sectionScore * 1.5;
-        if (total > bestScore) {
-          bestScore = total;
-          best = {
-            projectId: project.id,
-            projectName: project.name,
-            projectEmoji: project.emoji,
-            sectionId: section.id,
-            sectionName: section.name,
-            confidence: total,
-            topLevelProjectId: rootId,
-            topLevelProjectName: rootProject.name,
-            topLevelProjectEmoji: rootProject.emoji,
-          };
-        }
+        candidates.push({
+          projectId: project.id, projectName: project.name, projectEmoji: project.emoji,
+          sectionId: section.id, sectionName: section.name,
+          rootId, candidateText: buildCandidateText(rootProject.name, project.name, section.name),
+        });
       }
-    } else if (projectScore > bestScore) {
-      bestScore = projectScore;
+    } else {
+      candidates.push({
+        projectId: project.id, projectName: project.name, projectEmoji: project.emoji,
+        sectionId: null, sectionName: null,
+        rootId, candidateText: buildCandidateText(rootProject.name, project.name, null),
+      });
+    }
+  }
+
+  if (candidates.length === 0) return NextResponse.json(null);
+
+  const titleTokens = tokenize(title);
+
+  // ── Embedding-based ranking (when OPENAI_API_KEY is set) ──────────────────
+  const apiKey = process.env.OPENAI_API_KEY;
+  if (apiKey) {
+    try {
+      const openai = new OpenAI({ apiKey });
+      const inputs = [title, ...candidates.map((c) => c.candidateText)];
+      const resp = await openai.embeddings.create({ model: "text-embedding-3-small", input: inputs });
+      const embeddings = resp.data.map((d) => d.embedding);
+      const titleVec = embeddings[0];
+
+      let bestScore = -1;
+      let bestIdx = -1;
+      for (let i = 0; i < candidates.length; i++) {
+        const c = candidates[i];
+        const corrBoost = corrections.reduce(
+          (sum, corr) => sum + correctionBoost(titleTokens, corr, c.projectId, c.sectionId) * 0.01, 0
+        );
+        const score = cosine(titleVec, embeddings[i + 1]) + corrBoost;
+        if (score > bestScore) { bestScore = score; bestIdx = i; }
+      }
+
+      if (bestScore < 0.25) return NextResponse.json(null);
+
+      const best = candidates[bestIdx];
+      const rootProject = projects.find((p) => p.id === best.rootId)!;
+      return NextResponse.json({
+        projectId: best.projectId, projectName: best.projectName, projectEmoji: best.projectEmoji,
+        sectionId: best.sectionId, sectionName: best.sectionName,
+        confidence: Math.round(bestScore * 100),
+        topLevelProjectId: best.rootId,
+        topLevelProjectName: rootProject.name, topLevelProjectEmoji: rootProject.emoji,
+      } satisfies CategorizeResult);
+    } catch (e) {
+      console.error("[categorize] OpenAI error, falling back to keyword scoring:", e);
+    }
+  }
+
+  // ── Keyword fallback ──────────────────────────────────────────────────────
+  let bestScore = 0;
+  let best: CategorizeResult | null = null;
+
+  for (const c of candidates) {
+    const rootProject = projects.find((p) => p.id === c.rootId)!;
+    const projectScore = scoreName(titleTokens, c.projectName) + domainBonus(titleTokens, c.projectName);
+    const sectionScore = c.sectionName
+      ? scoreName(titleTokens, c.sectionName) + domainBonus(titleTokens, c.sectionName)
+      : 0;
+    const corrBoost = corrections.reduce(
+      (sum, corr) => sum + correctionBoost(titleTokens, corr, c.projectId, c.sectionId), 0
+    );
+    const total = projectScore + sectionScore * 1.5 + corrBoost;
+    if (total > bestScore) {
+      bestScore = total;
       best = {
-        projectId: project.id,
-        projectName: project.name,
-        projectEmoji: project.emoji,
-        sectionId: null,
-        sectionName: null,
-        confidence: projectScore,
-        topLevelProjectId: rootId,
-        topLevelProjectName: rootProject.name,
-        topLevelProjectEmoji: rootProject.emoji,
+        projectId: c.projectId, projectName: c.projectName, projectEmoji: c.projectEmoji,
+        sectionId: c.sectionId, sectionName: c.sectionName,
+        confidence: total,
+        topLevelProjectId: c.rootId,
+        topLevelProjectName: rootProject.name, topLevelProjectEmoji: rootProject.emoji,
       };
     }
   }
 
-  const THRESHOLD = 5;  // raised from 4 to require a more meaningful keyword match
+  const THRESHOLD = 5;
   return NextResponse.json(bestScore >= THRESHOLD ? best : null);
 }

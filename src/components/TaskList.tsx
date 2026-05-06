@@ -230,6 +230,14 @@ export interface AddExtras {
 
 // ─── callCategorize helper ────────────────────────────────────────────────────
 
+/** Returns true if a top-level project name represents a "work" context.
+ *  Checks common work-flavored words; defaults to false (personal) if unclear. */
+function isWorkProject(name: string): boolean {
+  const n = name.toLowerCase();
+  return ["work", "job", "career", "professional", "office", "company", "biz", "corp"]
+    .some((w) => n.includes(w));
+}
+
 async function callCategorize(
   title: string,
   filterTopLevelId?: number
@@ -310,6 +318,9 @@ function AddTaskInline({
   const [autoReason, setAutoReason] = useState("");
   const [priorityWasAuto, setPriorityWasAuto] = useState(false);
   const [dueIsThisWeek, setDueIsThisWeek] = useState(false);
+  // Track original AI suggestion to detect user corrections
+  const [aiSuggestedProjId, setAiSuggestedProjId] = useState<string>("");
+  const [aiSuggestedSectId, setAiSuggestedSectId] = useState<string>("");
 
   const ref = useRef<HTMLInputElement>(null);
   const example = getContextExample(contextLabel);
@@ -344,6 +355,8 @@ function AddTaskInline({
     setAutoReason("");
     setPriorityWasAuto(false);
     setDueIsThisWeek(false);
+    setAiSuggestedProjId("");
+    setAiSuggestedSectId("");
   }
 
   // ── Called when user submits the input (step 0 → step 1 or step 2) ───────
@@ -375,8 +388,8 @@ function AddTaskInline({
       // Handle "this week" — pick Work=Friday / Personal=Sunday
       setDueIsThisWeek(parsed.isThisWeek);
       if (parsed.isThisWeek && categorizeData) {
-        const isPersonal = categorizeData.topLevelProjectName.toLowerCase().includes("personal");
-        setSelDueAt(toDateInputValue(isPersonal ? thisWeekSunday() : thisWeekFriday()));
+        const isWork = isWorkProject(categorizeData.topLevelProjectName);
+        setSelDueAt(toDateInputValue(isWork ? thisWeekFriday() : thisWeekSunday()));
       } else {
         setSelDueAt(toDateInputValue(pDueAt));
       }
@@ -396,6 +409,8 @@ function AddTaskInline({
         setSelTopLevelId(categorizeData.topLevelProjectId.toString());
         setSelProjectId(categorizeData.projectId.toString());
         setSelSectionId(categorizeData.sectionId?.toString() ?? "");
+        setAiSuggestedProjId(categorizeData.projectId.toString());
+        setAiSuggestedSectId(categorizeData.sectionId?.toString() ?? "");
       }
       // Always show confirm card — even with no match, user needs priority/due date
       setStep("confirm");
@@ -417,8 +432,8 @@ function AddTaskInline({
     // Re-pin "this week" due date based on the newly chosen area
     if (dueIsThisWeek) {
       const topName = topLevelProjects.find((p) => p.id.toString() === topId)?.name ?? "";
-      const isPersonal = topName.toLowerCase().includes("personal");
-      setSelDueAt(toDateInputValue(isPersonal ? thisWeekSunday() : thisWeekFriday()));
+      const isWork = isWorkProject(topName);
+      setSelDueAt(toDateInputValue(isWork ? thisWeekFriday() : thisWeekSunday()));
     }
 
     setLoading(true);
@@ -440,6 +455,26 @@ function AddTaskInline({
   function confirmAdd() {
     const pid = selProjectId ? parseInt(selProjectId) : undefined;
     const sid = selSectionId ? parseInt(selSectionId) : undefined;
+
+    // Record correction if user changed the AI's suggestion
+    const userChangedCategory =
+      pid !== undefined &&
+      (selProjectId !== aiSuggestedProjId || selSectionId !== aiSuggestedSectId);
+
+    if (userChangedCategory && pid !== undefined) {
+      fetch("/api/correct", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: cleanTitle || text.trim(),
+          suggestedProjId: aiSuggestedProjId ? parseInt(aiSuggestedProjId) : null,
+          suggestedSectId: aiSuggestedSectId ? parseInt(aiSuggestedSectId) : null,
+          chosenProjId: pid,
+          chosenSectId: sid ?? null,
+        }),
+      }).catch(() => {}); // fire-and-forget, non-blocking
+    }
+
     onAdd(cleanTitle || text.trim(), sid, pid, {
       cleanTitle: cleanTitle || undefined,
       dueAt: toIsoMidnight(selDueAt),
