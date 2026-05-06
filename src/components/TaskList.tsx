@@ -5,6 +5,7 @@ import type { Task, Section, ActiveView, Project } from "@/types";
 import type { CategorizeResult } from "@/app/api/categorize/route";
 import { suggestPriority } from "@/lib/priority";
 import { parseTask, thisWeekFriday, thisWeekSunday } from "@/lib/nlp";
+import { REMINDER_PRESETS, computeReminderAt, type ReminderOffset } from "@/lib/reminder";
 import HabitSummaryWidget from "./HabitSummaryWidget";
 import TaskRow from "./TaskRow";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -223,9 +224,10 @@ const NLP_HINTS = [
 // ─── AddExtras — extra fields collected in the categorization card ────────────
 
 export interface AddExtras {
-  cleanTitle?: string;           // NLP-cleaned version of what the user typed
-  dueAt?: string | null;         // ISO string or null
-  manualPriority?: string | null; // "P0" | "P1" | "P2" | null
+  cleanTitle?: string;
+  dueAt?: string | null;
+  manualPriority?: string | null;
+  reminderAt?: string | null;
 }
 
 // ─── callCategorize helper ────────────────────────────────────────────────────
@@ -321,6 +323,7 @@ function AddTaskInline({
   const [autoReason, setAutoReason] = useState("");
   const [priorityWasAuto, setPriorityWasAuto] = useState(false);
   const [dueIsThisWeek, setDueIsThisWeek] = useState(false);
+  const [selReminderOffset, setSelReminderOffset] = useState<ReminderOffset>("none");
   // Track original AI suggestion to detect user corrections
   const [aiSuggestedProjId, setAiSuggestedProjId] = useState<string>("");
   const [aiSuggestedSectId, setAiSuggestedSectId] = useState<string>("");
@@ -358,6 +361,7 @@ function AddTaskInline({
     setAutoReason("");
     setPriorityWasAuto(false);
     setDueIsThisWeek(false);
+    setSelReminderOffset("none");
     setAiSuggestedProjId("");
     setAiSuggestedSectId("");
   }
@@ -487,6 +491,7 @@ function AddTaskInline({
       cleanTitle: cleanTitle || undefined,
       dueAt: toIsoMidnight(selDueAt),
       manualPriority: selPriority || null,
+      reminderAt: computeReminderAt(toIsoMidnight(selDueAt), selReminderOffset),
     });
     reset();
   }
@@ -691,13 +696,38 @@ function AddTaskInline({
             <input
               type="date"
               value={selDueAt}
-              onChange={(e) => setSelDueAt(e.target.value)}
+              onChange={(e) => {
+                setSelDueAt(e.target.value);
+                if (!e.target.value) setSelReminderOffset("none");
+              }}
               className={`w-full text-xs px-3 py-1.5 rounded-lg border-2 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors
                 ${selDueAt
                   ? "border-zinc-200 dark:border-zinc-600"
                   : "border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/10"
                 }`}
             />
+          </div>
+
+          {/* ── Reminder ── */}
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
+              🔔 Reminder
+              {!selDueAt && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-zinc-100 dark:bg-zinc-700 text-zinc-400 font-normal normal-case tracking-normal">
+                  set a due date first
+                </span>
+              )}
+            </p>
+            <select
+              value={selReminderOffset}
+              onChange={(e) => setSelReminderOffset(e.target.value as ReminderOffset)}
+              disabled={!selDueAt}
+              className="w-full text-xs px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:opacity-40"
+            >
+              {REMINDER_PRESETS.map((p) => (
+                <option key={p.value} value={p.value}>{p.label}</option>
+              ))}
+            </select>
           </div>
 
           {/* ── Actions ── */}

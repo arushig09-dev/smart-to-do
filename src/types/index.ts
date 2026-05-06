@@ -50,6 +50,7 @@ export type Task = {
   notes: string | null;
   status: string;
   dueAt: string | null;
+  reminderAt: string | null;
   manualPriority: string | null;
   suggestedPriority: string | null;
   priorityScore: number | null;

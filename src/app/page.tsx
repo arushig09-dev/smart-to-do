@@ -87,11 +87,14 @@ export default function Home() {
       let finalDueAt: string | null = null;
       let finalPriority: string | null = null;
 
+      let finalReminderAt: string | null = null;
+
       if (extras) {
         // Extras already parsed by the categorization wizard — skip re-parsing
         finalTitle = extras.cleanTitle ?? title;
         finalDueAt = extras.dueAt ?? null;
         finalPriority = extras.manualPriority ?? null;
+        finalReminderAt = extras.reminderAt ?? null;
       } else {
         // Direct add (project view) — parse client-side using the user's local timezone
         const parsed = parseTask(title);
@@ -106,6 +109,7 @@ export default function Home() {
         body: JSON.stringify({
           title: finalTitle,
           dueAt: finalDueAt,
+          reminderAt: finalReminderAt,
           manualPriority: finalPriority,
           projectId: projectId ?? (activeView.type === "project" ? activeView.id : null),
           sectionId: sectionId ?? null,

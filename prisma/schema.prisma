@@ -180,6 +180,7 @@ model Task {
   priorityScore     Float?
   priorityReason    String?
   dueAt             DateTime?
+  reminderAt        DateTime?
   isBlocked         Boolean        @default(false)
   completedAt       DateTime?
   order             Int            @default(0)

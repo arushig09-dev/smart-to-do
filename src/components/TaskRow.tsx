@@ -88,6 +88,14 @@ export default function TaskRow({
               {relativeDate(task.dueAt)}
             </span>
           )}
+          {task.reminderAt && (
+            <span
+              className="text-[10px] text-indigo-400 dark:text-indigo-400 flex items-center gap-0.5"
+              title={`Reminder: ${new Date(task.reminderAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })}`}
+            >
+              🔔
+            </span>
+          )}
           {task.isBlocked && <span className="text-xs text-red-400 font-medium">⛔ Blocked</span>}
           {showProject && task.project && (
             <span className="text-xs text-zinc-400">{task.project.emoji ?? "📋"} {task.project.name}</span>

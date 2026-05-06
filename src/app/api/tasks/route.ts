@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
   if (error) return error;
 
   const body = await req.json();
-  const { title, notes, dueAt, manualPriority, isBlocked, projectId, sectionId, parentTaskId, labelIds } = body;
+  const { title, notes, dueAt, reminderAt, manualPriority, isBlocked, projectId, sectionId, parentTaskId, labelIds } = body;
 
   if (!title || !title.trim()) {
     return NextResponse.json({ error: "Title is required" }, { status: 400 });
@@ -82,6 +82,7 @@ export async function POST(req: NextRequest) {
       title: title.trim(),
       notes: notes || null,
       dueAt: dueAt ? new Date(dueAt) : null,
+      reminderAt: reminderAt ? new Date(reminderAt) : null,
       manualPriority: manualPriority || null,
       isBlocked: !!isBlocked,
       suggestedPriority: suggestion.priority,

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import type { Task, Project, Section } from "@/types";
 import { useTheme } from "@/contexts/ThemeContext";
+import { REMINDER_PRESETS, computeReminderAt, getReminderOffset, type ReminderOffset } from "@/lib/reminder";
 
 const PRIORITY_OPTIONS = [
   { value: "", label: "Auto (AI)" },
@@ -28,6 +29,9 @@ export default function TaskDetail({
   const [title, setTitle] = useState(task.title);
   const [notes, setNotes] = useState(task.notes ?? "");
   const [dueAt, setDueAt] = useState(task.dueAt ? task.dueAt.slice(0, 16) : "");
+  const [reminderOffset, setReminderOffset] = useState<ReminderOffset | "custom">(
+    getReminderOffset(task.dueAt, task.reminderAt)
+  );
   const [priority, setPriority] = useState(task.manualPriority ?? "");
   const [isBlocked, setIsBlocked] = useState(task.isBlocked);
   const [projectId, setProjectId] = useState<string>(task.projectId?.toString() ?? "");
@@ -39,6 +43,7 @@ export default function TaskDetail({
     setTitle(task.title);
     setNotes(task.notes ?? "");
     setDueAt(task.dueAt ? task.dueAt.slice(0, 16) : "");
+    setReminderOffset(getReminderOffset(task.dueAt, task.reminderAt));
     setPriority(task.manualPriority ?? "");
     setIsBlocked(task.isBlocked);
     setProjectId(task.projectId?.toString() ?? "");
@@ -59,6 +64,9 @@ export default function TaskDetail({
           title: title.trim(),
           notes: notes.trim() || null,
           dueAt: dueAt || null,
+          reminderAt: reminderOffset !== "none" && reminderOffset !== "custom" && dueAt
+            ? computeReminderAt(dueAt, reminderOffset)
+            : (reminderOffset === "none" ? null : undefined),
           manualPriority: priority || null,
           isBlocked,
           projectId: projectId || null,
@@ -137,7 +145,10 @@ export default function TaskDetail({
             <input
               type="datetime-local"
               value={dueAt}
-              onChange={(e) => setDueAt(e.target.value)}
+              onChange={(e) => {
+                setDueAt(e.target.value);
+                if (!e.target.value) setReminderOffset("none");
+              }}
               className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-zinc-900 dark:text-zinc-100"
             />
           </div>
@@ -157,6 +168,39 @@ export default function TaskDetail({
               ))}
             </select>
           </div>
+        </div>
+
+        {/* Reminder */}
+        <div>
+          <label className="block text-xs font-medium text-zinc-500 dark:text-zinc-400 mb-1.5 flex items-center gap-1.5">
+            🔔 Reminder
+            {!dueAt && (
+              <span className="text-[10px] font-normal text-zinc-400">
+                (set a due date to enable)
+              </span>
+            )}
+          </label>
+          <select
+            value={reminderOffset}
+            onChange={(e) => setReminderOffset(e.target.value as ReminderOffset | "custom")}
+            disabled={!dueAt}
+            className="w-full px-3 py-2 text-sm rounded-lg border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-zinc-900 dark:text-zinc-100 disabled:opacity-40"
+          >
+            {REMINDER_PRESETS.map((p) => (
+              <option key={p.value} value={p.value}>{p.label}</option>
+            ))}
+            {reminderOffset === "custom" && (
+              <option value="custom">Custom (keep existing)</option>
+            )}
+          </select>
+          {reminderOffset !== "none" && dueAt && (
+            <p className="mt-1 text-[11px] text-indigo-500 dark:text-indigo-400">
+              Reminder:{" "}
+              {reminderOffset !== "custom"
+                ? new Date(computeReminderAt(dueAt, reminderOffset as ReminderOffset) ?? dueAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+                : "Custom time (from previous save)"}
+            </p>
+          )}
         </div>
 
         {/* Project + Section */}

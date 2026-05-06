@@ -23,6 +23,7 @@ export async function PATCH(
   if (body.title !== undefined) data.title = (body.title || "").trim();
   if (body.notes !== undefined) data.notes = body.notes || null;
   if (body.dueAt !== undefined) data.dueAt = body.dueAt ? new Date(body.dueAt) : null;
+  if (body.reminderAt !== undefined) data.reminderAt = body.reminderAt ? new Date(body.reminderAt) : null;
   if (body.manualPriority !== undefined) data.manualPriority = body.manualPriority || null;
   if (body.isBlocked !== undefined) data.isBlocked = !!body.isBlocked;
   if (body.projectId !== undefined) data.projectId = body.projectId ? parseInt(body.projectId, 10) : null;
