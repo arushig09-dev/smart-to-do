@@ -535,8 +535,8 @@ export default function HabitTracker() {
           )}
         </div>
         <p className="mt-1.5 text-sm text-zinc-400 dark:text-zinc-500 leading-relaxed">
-          Add daily, weekly, or monthly goals and check them off each day to build lasting habits.
-          The week view shows your progress — green dots mean done, empty circles mean upcoming.
+          Tap the <span className="font-semibold text-zinc-500 dark:text-zinc-400">circle ○</span> next to a habit to mark it done for today.
+          The weekly grid on the right tracks your streak — green dot means done.
         </p>
         {habits.length > 0 && (
           <div className="mt-3">
@@ -558,7 +558,7 @@ export default function HabitTracker() {
               <div className="px-4 sm:px-6 pt-5 pb-2">
                 {/* Mirror the habit-row flex layout so columns line up exactly */}
                 <div className="flex items-center gap-3">
-                  <div className="w-8 flex-shrink-0" /> {/* spacer for toggle button */}
+                  <div className="w-9 flex-shrink-0" /> {/* spacer for toggle button */}
                   <div className="flex-1" />             {/* spacer for name */}
                   <div className="flex gap-2 flex-shrink-0">
                     {days.map((d, i) => (
@@ -593,24 +593,41 @@ export default function HabitTracker() {
                     key={habit.id}
                     className="group flex items-center gap-3 py-3 border-b border-stone-50 dark:border-zinc-800/50 last:border-0"
                   >
-                    {/* Today toggle */}
-                    <button
-                      onClick={() => toggleLog(habit.id)}
-                      className={`flex-shrink-0 w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all duration-200 text-base ${
+                    {/* Today toggle — dashed border = incomplete, solid green = done */}
+                    <div className="flex-shrink-0 flex flex-col items-center gap-0.5">
+                      <button
+                        onClick={() => toggleLog(habit.id)}
+                        className={`group/btn w-9 h-9 rounded-full border-2 flex items-center justify-center transition-all duration-200 text-base ${
+                          habit.completedToday
+                            ? "border-green-500 bg-green-500 scale-110"
+                            : "border-dashed border-zinc-300 dark:border-zinc-600 hover:border-green-500 hover:bg-green-50 dark:hover:bg-green-900/20 hover:scale-105"
+                        }`}
+                        title={habit.completedToday ? "Mark incomplete" : "Tap to mark done for today"}
+                      >
+                        {habit.completedToday ? (
+                          <svg viewBox="0 0 12 12" fill="none" className="w-4 h-4">
+                            <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        ) : (
+                          <span className="relative flex items-center justify-center w-full h-full">
+                            <span className="group-hover/btn:opacity-0 transition-opacity duration-150 text-sm leading-none select-none">
+                              {habit.emoji ?? "⭐"}
+                            </span>
+                            <svg viewBox="0 0 12 12" fill="none" className="absolute w-4 h-4 opacity-0 group-hover/btn:opacity-100 transition-opacity duration-150">
+                              <path d="M2 6l3 3 5-5" stroke="#22c55e" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                            </svg>
+                          </span>
+                        )}
+                      </button>
+                      {/* Label below circle */}
+                      <span className={`text-[9px] font-medium leading-none transition-opacity duration-150 ${
                         habit.completedToday
-                          ? "border-green-500 bg-green-500 scale-110"
-                          : "border-zinc-200 dark:border-zinc-700 hover:border-green-400 hover:scale-105"
-                      }`}
-                      title={habit.completedToday ? "Mark incomplete" : "Mark complete"}
-                    >
-                      {habit.completedToday ? (
-                        <svg viewBox="0 0 12 12" fill="none" className="w-4 h-4">
-                          <path d="M2 6l3 3 5-5" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      ) : (
-                        <span className="text-sm">{habit.emoji ?? "⭐"}</span>
-                      )}
-                    </button>
+                          ? "text-green-500 opacity-100"
+                          : "text-green-600 dark:text-green-400 opacity-0 group-hover:opacity-100"
+                      }`}>
+                        {habit.completedToday ? "done ✓" : "mark done"}
+                      </span>
+                    </div>
 
                     {/* Name + goal + streak */}
                     <div className="flex-1 min-w-0">
