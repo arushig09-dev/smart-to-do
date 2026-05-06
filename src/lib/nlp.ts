@@ -22,11 +22,34 @@ function endOfDay(d: Date): Date {
   return out;
 }
 
+/** Friday of the current week (or today if today IS Friday). */
+export function thisWeekFriday(from: Date = new Date()): Date {
+  const day = from.getDay(); // 0=Sun … 6=Sat
+  const daysAway = day <= 5 ? 5 - day : 6; // Sat → next Fri in 6d
+  const d = new Date(from);
+  d.setDate(d.getDate() + daysAway);
+  d.setHours(23, 59, 0, 0);
+  return d;
+}
+
+/** Sunday of the current week (or today if today IS Sunday). */
+export function thisWeekSunday(from: Date = new Date()): Date {
+  const day = from.getDay();
+  const daysAway = day === 0 ? 0 : 7 - day;
+  const d = new Date(from);
+  d.setDate(d.getDate() + daysAway);
+  d.setHours(23, 59, 0, 0);
+  return d;
+}
+
 export interface ParseResult {
   title: string;
   dueAt: Date | null;
   dueLabel: string | null;
   manualPriority: string | null;
+  /** True when the phrase "this week" was detected — caller should adjust
+   *  the date to Friday (Work) or Sunday (Personal) once the category is known. */
+  isThisWeek: boolean;
 }
 
 export function parseTask(raw: string): ParseResult {
@@ -35,6 +58,7 @@ export function parseTask(raw: string): ParseResult {
   let dueAt: Date | null = null;
   let dueLabel: string | null = null;
   let manualPriority: string | null = null;
+  let isThisWeek = false;
 
   // Accept P0/P1/P2 shorthand OR "high"/"medium"/"low" (case-insensitive)
   text = text.replace(/\b[Pp][012]\b/, (m) => {
@@ -110,6 +134,16 @@ export function parseTask(raw: string): ParseResult {
   }
 
   if (!dueAt) {
+    text = text.replace(/\bthis\s+week\b/i, () => {
+      // Default to Friday; TaskList will override to Sunday if category is Personal
+      dueAt = thisWeekFriday(now);
+      dueLabel = "This Week";
+      isThisWeek = true;
+      return "";
+    });
+  }
+
+  if (!dueAt) {
     text = text.replace(/\bin\s+(\d+)\s+(day|week|hour)s?\b/i, (_, n, unit) => {
       const num = parseInt(n, 10);
       const d = new Date(now);
@@ -125,5 +159,5 @@ export function parseTask(raw: string): ParseResult {
   text = text.replace(/\b(by|due)\s*$/i, "").replace(/\s{2,}/g, " ").trim();
   text = text.replace(/^[,.\-;:\s]+|[,.\-;:\s]+$/g, "");
 
-  return { title: text || raw.trim(), dueAt, dueLabel, manualPriority };
+  return { title: text || raw.trim(), dueAt, dueLabel, manualPriority, isThisWeek };
 }

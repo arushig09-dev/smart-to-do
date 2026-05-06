@@ -4,7 +4,7 @@ import { useState, useRef } from "react";
 import type { Task, Section, ActiveView, Project } from "@/types";
 import type { CategorizeResult } from "@/app/api/categorize/route";
 import { suggestPriority } from "@/lib/priority";
-import { parseTask } from "@/lib/nlp";
+import { parseTask, thisWeekFriday, thisWeekSunday } from "@/lib/nlp";
 import HabitSummaryWidget from "./HabitSummaryWidget";
 import TaskRow from "./TaskRow";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -309,6 +309,7 @@ function AddTaskInline({
   const [selPriority, setSelPriority] = useState("");
   const [autoReason, setAutoReason] = useState("");
   const [priorityWasAuto, setPriorityWasAuto] = useState(false);
+  const [dueIsThisWeek, setDueIsThisWeek] = useState(false);
 
   const ref = useRef<HTMLInputElement>(null);
   const example = getContextExample(contextLabel);
@@ -342,6 +343,7 @@ function AddTaskInline({
     setSelPriority("");
     setAutoReason("");
     setPriorityWasAuto(false);
+    setDueIsThisWeek(false);
   }
 
   // ── Called when user submits the input (step 0 → step 1 or step 2) ───────
@@ -369,7 +371,15 @@ function AddTaskInline({
       const pPriority: string | null = parsed.manualPriority;
 
       setCleanTitle(pTitle);
-      setSelDueAt(toDateInputValue(pDueAt));
+
+      // Handle "this week" — pick Work=Friday / Personal=Sunday
+      setDueIsThisWeek(parsed.isThisWeek);
+      if (parsed.isThisWeek && categorizeData) {
+        const isPersonal = categorizeData.topLevelProjectName.toLowerCase().includes("personal");
+        setSelDueAt(toDateInputValue(isPersonal ? thisWeekSunday() : thisWeekFriday()));
+      } else {
+        setSelDueAt(toDateInputValue(pDueAt));
+      }
 
       // Auto-suggest priority if the user didn't type one
       const suggestion = suggestPriority({
@@ -403,6 +413,14 @@ function AddTaskInline({
     setSelTopLevelId(topId);
     setSelProjectId("");
     setSelSectionId("");
+
+    // Re-pin "this week" due date based on the newly chosen area
+    if (dueIsThisWeek) {
+      const topName = topLevelProjects.find((p) => p.id.toString() === topId)?.name ?? "";
+      const isPersonal = topName.toLowerCase().includes("personal");
+      setSelDueAt(toDateInputValue(isPersonal ? thisWeekSunday() : thisWeekFriday()));
+    }
+
     setLoading(true);
     try {
       const result = await callCategorize(cleanTitle || text.trim(), parseInt(topId));
