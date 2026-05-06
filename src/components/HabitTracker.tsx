@@ -111,9 +111,37 @@ function freqLabel(targetDays: number, daysOfWeek: string): string {
   return `${targetDays}× per week`;
 }
 
+// ─── Date helpers ─────────────────────────────────────────────────────────────
+// All week-day ISOs are stored as "YYYY-MM-DDT00:00:00.000Z" where the
+// date part comes from the user's LOCAL calendar, NOT the UTC equivalent.
+// This avoids timezone shift bugs (e.g. Pacific midnight = 07:00 UTC ≠ 00:00 UTC).
+
+function localDateStr(d: Date = new Date()): string {
+  const yyyy = d.getFullYear();
+  const mm   = String(d.getMonth() + 1).padStart(2, "0");
+  const dd   = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+/** Represent a local calendar date as the sentinel "YYYY-MM-DDT00:00:00.000Z"
+ *  so it matches the format stored by the log endpoint. */
+function localMidnightUTC(d: Date): string {
+  return `${localDateStr(d)}T00:00:00.000Z`;
+}
+
+// Compare date portions only (first 10 chars of ISO string)
+function isToday(iso: string)  { return iso.slice(0, 10) === localDateStr(); }
+function isFuture(iso: string) { return iso.slice(0, 10) > localDateStr(); }
+function isSameDay(a: string, b: string) { return a.slice(0, 10) === b.slice(0, 10); }
+
+function dayOfWeekIndex(iso: string): number {
+  const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
+  return new Date(y, m - 1, d).getDay(); // local day index, no UTC shift
+}
+
 // ─── Week helpers (starts Monday) ────────────────────────────────────────────
 
-// Returns Mon–Sun of the current ISO week as ISO strings
+// Returns Mon–Sun of the current ISO week as "YYYY-MM-DDT00:00:00.000Z" sentinels
 function currentWeekDays(): string[] {
   const today = new Date();
   const dow = today.getDay(); // 0=Sun … 6=Sat
@@ -124,30 +152,8 @@ function currentWeekDays(): string[] {
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(monday);
     d.setDate(monday.getDate() + i);
-    return d.toISOString();
+    return localMidnightUTC(d); // "YYYY-MM-DDT00:00:00.000Z" using LOCAL date
   });
-}
-
-function isToday(iso: string) {
-  const d = new Date(iso);
-  const now = new Date();
-  return (
-    d.getDate() === now.getDate() &&
-    d.getMonth() === now.getMonth() &&
-    d.getFullYear() === now.getFullYear()
-  );
-}
-
-function isFuture(iso: string) {
-  return new Date(iso).setHours(0, 0, 0, 0) > new Date().setHours(0, 0, 0, 0);
-}
-
-function isSameDay(a: string, b: string) {
-  return new Date(a).setHours(0, 0, 0, 0) === new Date(b).setHours(0, 0, 0, 0);
-}
-
-function dayOfWeekIndex(iso: string): number {
-  return new Date(iso).getDay(); // 0=Sun … 6=Sat
 }
 
 // ─── Pending habit form ────────────────────────────────────────────────────────
@@ -416,11 +422,11 @@ export default function HabitTracker() {
   const [addError, setAddError] = useState<string | null>(null);
   const days = currentWeekDays(); // Mon–Sun of this week
 
-  async function load() {
-    setLoading(true);
+  async function load(silent = false) {
+    if (!silent) setLoading(true);
     try {
       const [habitsRes, projectsRes] = await Promise.all([
-        fetch("/api/habits"),
+        fetch(`/api/habits?localDate=${localDateStr()}`),
         fetch("/api/projects"),
       ]);
       if (!habitsRes.ok) throw new Error("Failed");
@@ -447,8 +453,12 @@ export default function HabitTracker() {
           : h
       )
     );
-    await fetch(`/api/habits/${habitId}/log`, { method: "POST" });
-    load();
+    await fetch(`/api/habits/${habitId}/log`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ localDate: localDateStr() }),
+    });
+    load(true); // silent reload — no spinner flash
   }
 
   async function confirmAdd(h: Omit<PendingHabit, "customDays">) {
@@ -546,9 +556,11 @@ export default function HabitTracker() {
             {/* ── Week column headers: Mon–Sun ── */}
             {habits.length > 0 && (
               <div className="px-4 sm:px-6 pt-5 pb-2">
-                <div className="flex items-center">
-                  <div className="flex-1" />
-                  <div className="flex gap-2">
+                {/* Mirror the habit-row flex layout so columns line up exactly */}
+                <div className="flex items-center gap-3">
+                  <div className="w-8 flex-shrink-0" /> {/* spacer for toggle button */}
+                  <div className="flex-1" />             {/* spacer for name */}
+                  <div className="flex gap-2 flex-shrink-0">
                     {days.map((d, i) => (
                       <div
                         key={d}
@@ -564,6 +576,7 @@ export default function HabitTracker() {
                       </div>
                     ))}
                   </div>
+                  <div className="w-[13px] ml-1 flex-shrink-0" /> {/* spacer for delete button */}
                 </div>
               </div>
             )}

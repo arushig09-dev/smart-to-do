@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUserId } from "@/lib/requireUser";
 
-function todayStart() {
+function todayStart(localDate?: string | null): Date {
+  if (localDate && /^\d{4}-\d{2}-\d{2}$/.test(localDate)) {
+    return new Date(`${localDate}T00:00:00.000Z`);
+  }
   const d = new Date();
-  d.setHours(0, 0, 0, 0);
+  d.setUTCHours(0, 0, 0, 0);
   return d;
 }
 
@@ -35,8 +38,9 @@ export async function GET(req: NextRequest) {
   if (error) return error;
 
   const { searchParams } = new URL(req.url);
-  const sectionId = searchParams.get("sectionId");
-  const projectId = searchParams.get("projectId");
+  const sectionId  = searchParams.get("sectionId");
+  const projectId  = searchParams.get("projectId");
+  const localDate  = searchParams.get("localDate"); // client's local YYYY-MM-DD
 
   const where: Record<string, unknown> = { isArchived: false, userId };
   if (sectionId) where.linkedSectionId = parseInt(sectionId, 10);
@@ -57,7 +61,7 @@ export async function GET(req: NextRequest) {
     ...h,
     streak: calcStreak(h.entries),
     completedToday: h.entries.some(
-      (e) => new Date(e.date).setHours(0, 0, 0, 0) === todayStart().getTime()
+      (e) => new Date(e.date).getTime() === todayStart(localDate).getTime()
     ),
   }));
 
