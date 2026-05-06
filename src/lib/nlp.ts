@@ -22,6 +22,14 @@ function endOfDay(d: Date): Date {
   return out;
 }
 
+/** Last day of the current month. */
+export function endOfMonth(from: Date = new Date()): Date {
+  // Day 0 of next month = last day of current month
+  const d = new Date(from.getFullYear(), from.getMonth() + 1, 0);
+  d.setHours(23, 59, 0, 0);
+  return d;
+}
+
 /** Friday of the current week (or today if today IS Friday). */
 export function thisWeekFriday(from: Date = new Date()): Date {
   const day = from.getDay(); // 0=Sun … 6=Sat
@@ -141,6 +149,18 @@ export function parseTask(raw: string): ParseResult {
       isThisWeek = true;
       return "";
     });
+  }
+
+  if (!dueAt) {
+    // "end of month", "end of the month", "before end of month", "by month end", "EOM"
+    text = text.replace(
+      /\b(?:before\s+)?(?:end\s+of\s+(?:the\s+)?month|month[- ]?end|eom)\b/i,
+      () => {
+        dueAt = endOfMonth(now);
+        dueLabel = "End of Month";
+        return "";
+      }
+    );
   }
 
   if (!dueAt) {

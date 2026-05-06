@@ -51,7 +51,9 @@ const DOMAIN_HINTS: { words: string[]; domains: string[] }[] = [
   },
   {
     words: ["tax", "bill", "payment", "budget", "expense",
-      "subscription", "invoice", "bank", "finance", "receipt", "reimburse"],
+      "subscription", "invoice", "bank", "finance", "receipt", "reimburse",
+      "reimbursement", "hsa", "fsa", "401k", "ira", "claim", "deductible",
+      "copay", "flexible", "savings account", "direct deposit", "wire transfer"],
     domains: ["finance", "admin", "money", "bills", "taxes"],
   },
   {
@@ -129,10 +131,19 @@ function domainBonus(titleTokens: string[], domainName: string): number {
     const matchesDomain = hint.domains.some((d) => domainLower.includes(d));
     if (!matchesDomain) continue;
     for (const tt of titleTokens) {
-      // Exact word match OR hint word fully contains the token (e.g. "visa" in hint list)
-      if (hint.words.some((w) => w === tt || w.startsWith(tt + " ") || w.endsWith(" " + tt))) {
-        bonus += 4;  // raised from 3 — domain signal is strong evidence
-        break;
+      if (hint.words.some((w) => {
+        // Multi-word hint phrase (e.g. "meal prep", "post office")
+        if (w.includes(" ")) {
+          return w.split(" ").some(
+            (wt) => wt === tt || (tt.length >= 4 && wt.length >= 4 && (tt.includes(wt) || wt.includes(tt)))
+          );
+        }
+        // Single-word hint: exact match OR substring if both words are ≥ 4 chars
+        // This lets "reimbursement" match hint "reimburse", "groceries" match "grocery", etc.
+        return w === tt || (tt.length >= 4 && w.length >= 4 && (tt.includes(w) || w.includes(tt)));
+      })) {
+        bonus += 4;
+        break; // one bonus per domain group per token
       }
     }
   }
