@@ -32,7 +32,9 @@ const DOMAIN_HINTS: { words: string[]; domains: string[] }[] = [
   },
   {
     words: ["grocery", "groceries", "buy", "order", "amazon", "pick up",
-      "restock", "shopping", "errand", "post office", "return", "package"],
+      "restock", "shopping", "errand", "post office", "return", "package",
+      "costco", "walmart", "target", "trader", "safeway", "whole foods",
+      "kroger", "cvs", "walgreens", "pharmacy run", "store run"],
     domains: ["grocery", "logistics", "daily", "errands", "supplies", "online"],
   },
   {
@@ -87,8 +89,14 @@ function scoreName(titleTokens: string[], name: string): number {
   let score = 0;
   for (const tt of titleTokens) {
     for (const nt of nameTokens) {
-      if (nt === tt) score += tt.length * 2;               // exact word match
-      else if (nt.includes(tt) || tt.includes(nt)) score += Math.min(tt.length, nt.length);
+      if (nt === tt) {
+        score += tt.length * 2;                             // exact word match — full credit
+      } else if (
+        (nt.includes(tt) || tt.includes(nt)) &&
+        Math.min(tt.length, nt.length) >= 5                 // partial match only for longer words
+      ) {
+        score += Math.min(tt.length, nt.length);            // prevents "plan"→"planning" false hit
+      }
     }
   }
   return score;
@@ -195,6 +203,6 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const THRESHOLD = 4;
+  const THRESHOLD = 5;  // raised from 4 to require a more meaningful keyword match
   return NextResponse.json(bestScore >= THRESHOLD ? best : null);
 }

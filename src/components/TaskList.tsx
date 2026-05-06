@@ -255,7 +255,7 @@ async function callCategorize(
 // Changing the top-level in step 1 triggers a fresh /api/categorize call with
 // filterTopLevelId so the sub-section suggestion always reflects the chosen area.
 
-type CategStep = "input" | "step1" | "step2";
+type CategStep = "input" | "confirm";
 
 const PRIORITY_LABELS: Record<string, { label: string; dot: string }> = {
   P0: { label: "High",   dot: "🔴" },
@@ -295,7 +295,7 @@ function AddTaskInline({
   const { theme } = useTheme();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
-  const [categorizing, setCategorizing] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [step, setStep] = useState<CategStep>("input");
 
   // Categorization state
@@ -305,8 +305,8 @@ function AddTaskInline({
 
   // NLP parse results
   const [cleanTitle, setCleanTitle] = useState("");
-  const [selDueAt, setSelDueAt] = useState("");         // yyyy-MM-dd for <input type=date>
-  const [selPriority, setSelPriority] = useState("");   // "P0" | "P1" | "P2"
+  const [selDueAt, setSelDueAt] = useState("");
+  const [selPriority, setSelPriority] = useState("");
   const [autoReason, setAutoReason] = useState("");
   const [priorityWasAuto, setPriorityWasAuto] = useState(false);
 
@@ -357,11 +357,9 @@ function AddTaskInline({
       return;
     }
 
-    setCategorizing(true);
+    setLoading(true);
     try {
       // Run NLP client-side (uses browser's local timezone) and categorize in parallel.
-      // Client-side parse avoids a server round-trip and ensures date keywords like
-      // "tomorrow" or "by Friday" resolve in the user's timezone, not the server's.
       const parsed = parseTask(t);
       const categorizeData = await callCategorize(t);
 
@@ -384,36 +382,27 @@ function AddTaskInline({
       setAutoReason(suggestion.reason);
       setPriorityWasAuto(!pPriority);
 
-      // Categorization results
       if (categorizeData) {
         setSelTopLevelId(categorizeData.topLevelProjectId.toString());
         setSelProjectId(categorizeData.projectId.toString());
         setSelSectionId(categorizeData.sectionId?.toString() ?? "");
-        setStep("step1");
-      } else {
-        // No project match — skip step 1, go straight to step 2 for priority/date
-        setStep("step2");
       }
+      setStep("confirm");
     } catch {
       onAdd(t);
       reset();
     } finally {
-      setCategorizing(false);
+      setLoading(false);
     }
   }
 
-  // ── Pick top-level project in step 1 ─────────────────────────────────────
-  async function pickTopLevel(topId: string) {
-    const prev = selTopLevelId;
+  // ── Switch top-level chip → re-categorize within new area ───────────────
+  async function switchTopLevel(topId: string) {
+    if (topId === selTopLevelId) return;
     setSelTopLevelId(topId);
-
-    if (topId === prev) {
-      setStep("step2");
-      return;
-    }
-
-    // Re-suggest sub-section within the new top-level
-    setCategorizing(true);
+    setSelProjectId("");
+    setSelSectionId("");
+    setLoading(true);
     try {
       const result = await callCategorize(cleanTitle || text.trim(), parseInt(topId));
       if (result) {
@@ -422,16 +411,13 @@ function AddTaskInline({
       } else {
         const firstSub = projects.find((p) => p.parentId === parseInt(topId));
         setSelProjectId(firstSub?.id.toString() ?? "");
-        setSelSectionId("");
       }
     } catch {
       const firstSub = projects.find((p) => p.parentId === parseInt(topId));
       setSelProjectId(firstSub?.id.toString() ?? "");
-      setSelSectionId("");
     } finally {
-      setCategorizing(false);
+      setLoading(false);
     }
-    setStep("step2");
   }
 
   function confirmAdd() {
@@ -505,10 +491,10 @@ function AddTaskInline({
           <div className="mt-2 flex gap-2">
             <button
               onClick={submit}
-              disabled={categorizing}
+              disabled={loading}
               className={`px-4 py-1.5 text-sm font-medium rounded-lg ${theme.button} disabled:opacity-60`}
             >
-              {categorizing ? "Analyzing…" : "Add task"}
+              {loading ? "Analyzing…" : "Add task"}
             </button>
             <button
               onClick={reset}
@@ -520,181 +506,138 @@ function AddTaskInline({
         </>
       )}
 
-      {/* ── Step 1: pick Work / Personal ─────────────────────────────── */}
-      {step === "step1" && (
+      {/* ── Confirm card: area chips + sub-project + section + priority + due date ── */}
+      {step === "confirm" && (
         <div className="mt-1 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 p-3 space-y-3">
+
+          {/* Task title recap */}
           <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
             <span className="font-medium text-zinc-700 dark:text-zinc-200">"{cleanTitle || text.trim()}"</span>
           </p>
 
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 mb-2 flex items-center gap-1.5">
-              <span>📂</span> Step 1 of 2 — Work or Personal?
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              {topLevelProjects.map((p) => {
-                const isSelected = selTopLevelId === p.id.toString();
+          {/* ── Work / Personal chips ── */}
+          {topLevelProjects.length > 0 && (
+            <div className="space-y-1.5">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400">📂 Area</p>
+              <div className="flex flex-wrap gap-1.5">
+                {topLevelProjects.map((p) => {
+                  const isSelected = selTopLevelId === p.id.toString();
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => switchTopLevel(p.id.toString())}
+                      disabled={loading}
+                      className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium border transition-all disabled:opacity-60
+                        ${isSelected
+                          ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300"
+                          : "border-zinc-200 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 bg-white dark:bg-zinc-700/50 hover:border-zinc-300 dark:hover:border-zinc-500"
+                        }`}
+                    >
+                      <span>{p.emoji ?? "📋"}</span>
+                      <span>{p.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* ── Sub-project + Section (cascade from area chip) ── */}
+          {loading ? (
+            <p className="text-xs text-zinc-400 py-1">Finding best section…</p>
+          ) : selTopLevelId ? (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-zinc-500 dark:text-zinc-400 w-16 flex-shrink-0">Project</label>
+                <select
+                  value={selProjectId}
+                  onChange={(e) => { setSelProjectId(e.target.value); setSelSectionId(""); }}
+                  className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">No sub-project</option>
+                  {subProjects.map((p) => (
+                    <option key={p.id} value={p.id.toString()}>{p.emoji ?? "📋"} {p.name}</option>
+                  ))}
+                </select>
+              </div>
+              {selSections.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-zinc-500 dark:text-zinc-400 w-16 flex-shrink-0">Section</label>
+                  <select
+                    value={selSectionId}
+                    onChange={(e) => setSelSectionId(e.target.value)}
+                    className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">No section</option>
+                    {selSections.map((s) => (
+                      <option key={s.id} value={s.id.toString()}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          ) : null}
+
+          <div className="border-t border-zinc-200 dark:border-zinc-700" />
+
+          {/* ── Priority chips ── */}
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-1.5">
+              <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400">🎯 Priority</p>
+              {priorityWasAuto && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">
+                  auto · {autoReason}
+                </span>
+              )}
+            </div>
+            <div className="flex gap-1.5">
+              {(["P0", "P1", "P2"] as const).map((p) => {
+                const { label, dot } = PRIORITY_LABELS[p];
+                const isActive = selPriority === p;
                 return (
                   <button
-                    key={p.id}
-                    onClick={() => pickTopLevel(p.id.toString())}
-                    disabled={categorizing}
-                    className={`flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-xl border-2 transition-all text-sm font-medium
-                      ${isSelected
+                    key={p}
+                    onClick={() => setSelPriority(p)}
+                    className={`flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg border text-xs font-medium transition-all
+                      ${isActive
                         ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300"
-                        : "border-zinc-200 dark:border-zinc-600 hover:border-indigo-300 dark:hover:border-indigo-600 text-zinc-600 dark:text-zinc-300 bg-white dark:bg-zinc-700/50"
-                      } disabled:opacity-60`}
+                        : "border-zinc-200 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 bg-white dark:bg-zinc-700/50 hover:border-zinc-300"
+                      }`}
                   >
-                    <span className="text-xl">{p.emoji ?? "📋"}</span>
-                    <span className="text-xs">{p.name}</span>
-                    {isSelected && <span className="text-[10px] text-indigo-500">suggested ✓</span>}
+                    <span>{dot}</span><span>{label}</span>
                   </button>
                 );
               })}
             </div>
           </div>
 
+          {/* ── Due date ── */}
+          <div className="space-y-1.5">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
+              📅 Due date
+              {!selDueAt && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 font-medium normal-case tracking-normal">
+                  not set — add one?
+                </span>
+              )}
+            </p>
+            <input
+              type="date"
+              value={selDueAt}
+              onChange={(e) => setSelDueAt(e.target.value)}
+              className={`w-full text-xs px-3 py-1.5 rounded-lg border-2 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors
+                ${selDueAt
+                  ? "border-zinc-200 dark:border-zinc-600"
+                  : "border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/10"
+                }`}
+            />
+          </div>
+
+          {/* ── Actions ── */}
           <div className="flex items-center gap-2 pt-0.5">
             <button
-              onClick={skipProject}
-              className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition px-2 py-1.5"
-            >
-              Add without project
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Step 2: sub-project + section + priority + due date ───────── */}
-      {step === "step2" && (
-        <div className="mt-1 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 p-3 space-y-3">
-
-          {/* Header */}
-          <div className="flex items-center justify-between">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
-              <span>📍</span> {selTopLevelId ? "Step 2 of 2 — Details" : "Task details"}
-            </p>
-            {selTopLevelId && (
-              <button
-                onClick={() => setStep("step1")}
-                className="text-[11px] text-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition flex items-center gap-0.5"
-              >
-                ← {topLevelProjects.find((p) => p.id.toString() === selTopLevelId)?.emoji ?? ""}{" "}
-                {topLevelProjects.find((p) => p.id.toString() === selTopLevelId)?.name ?? "Back"}
-              </button>
-            )}
-          </div>
-
-          {categorizing ? (
-            <p className="text-xs text-zinc-400 py-2 text-center">Finding best section…</p>
-          ) : (
-            <div className="space-y-2.5">
-
-              {/* Sub-project + section — only shown when a top-level was chosen */}
-              {selTopLevelId && (
-                <>
-                  <div className="flex items-center gap-2">
-                    <label className="text-xs text-zinc-500 dark:text-zinc-400 w-16 flex-shrink-0">Project</label>
-                    <select
-                      value={selProjectId}
-                      onChange={(e) => { setSelProjectId(e.target.value); setSelSectionId(""); }}
-                      className="flex-1 text-sm px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                    >
-                      <option value="">No sub-project</option>
-                      {subProjects.map((p) => (
-                        <option key={p.id} value={p.id.toString()}>
-                          {p.emoji ?? "📋"} {p.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {selSections.length > 0 && (
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs text-zinc-500 dark:text-zinc-400 w-16 flex-shrink-0">Section</label>
-                      <select
-                        value={selSectionId}
-                        onChange={(e) => setSelSectionId(e.target.value)}
-                        className="flex-1 text-sm px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                      >
-                        <option value="">No section</option>
-                        {selSections.map((s) => (
-                          <option key={s.id} value={s.id.toString()}>
-                            {s.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  <div className="border-t border-zinc-200 dark:border-zinc-700" />
-                </>
-              )}
-
-              {/* ── Priority ── */}
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5">
-                  <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                    🎯 Priority
-                  </label>
-                  {priorityWasAuto && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">
-                      auto · {autoReason}
-                    </span>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  {(["P0", "P1", "P2"] as const).map((p) => {
-                    const { label, dot } = PRIORITY_LABELS[p];
-                    const isActive = selPriority === p;
-                    return (
-                      <button
-                        key={p}
-                        onClick={() => setSelPriority(p)}
-                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border-2 text-xs font-medium transition-all
-                          ${isActive
-                            ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300"
-                            : "border-zinc-200 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 bg-white dark:bg-zinc-700/50 hover:border-zinc-300 dark:hover:border-zinc-500"
-                          }`}
-                      >
-                        <span>{dot}</span>
-                        <span>{label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* ── Due date ── */}
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
-                  📅 Due date
-                  {!selDueAt && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 font-medium animate-pulse">
-                      not set — add one?
-                    </span>
-                  )}
-                </label>
-                <input
-                  type="date"
-                  value={selDueAt}
-                  onChange={(e) => setSelDueAt(e.target.value)}
-                  className={`w-full text-sm px-3 py-2 rounded-lg border-2 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors
-                    ${selDueAt
-                      ? "border-zinc-200 dark:border-zinc-600"
-                      : "border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/10"
-                    }`}
-                />
-              </div>
-
-            </div>
-          )}
-
-          {/* Confirm + skip */}
-          <div className="flex items-center gap-2 pt-1">
-            <button
               onClick={confirmAdd}
-              disabled={categorizing}
+              disabled={loading}
               className={`px-4 py-1.5 text-sm font-medium rounded-lg ${theme.button} disabled:opacity-60`}
             >
               Add task
