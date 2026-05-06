@@ -77,7 +77,7 @@ const WORK_PERSONAS: Record<string, ProjectTemplate[]> = {
   strategist: [
     {
       name: "Roadmap & Priorities", emoji: "🗺️", color: "#8b5cf6", order: 0,
-      sections: ["Now", "Next", "Later", "Someday"],
+      sections: ["Shipping Now", "Up Next", "Backlog", "Ideas & Exploration"],
     },
     {
       name: "Discovery & Research", emoji: "🔍", color: "#06b6d4", order: 1,
@@ -121,7 +121,7 @@ const WORK_PERSONAS: Record<string, ProjectTemplate[]> = {
   pioneer: [
     {
       name: "Product", emoji: "🛠️", color: "#6366f1", order: 0,
-      sections: ["Now", "Next", "Later", "Customer Feedback"],
+      sections: ["Shipping Now", "Up Next", "Backlog", "Customer Feedback"],
     },
     {
       name: "Growth & Sales", emoji: "📈", color: "#22c55e", order: 1,

@@ -41,7 +41,17 @@ const CONTEXT_EXAMPLES: { match: string[]; example: string }[] = [
   // TIER 1 — Section-specific (unique section names across the new structure)
   // ══════════════════════════════════════════════════════════════════════════
 
-  // ── Work › Planning ───────────────────────────────────────────────────────
+  // ── Work › Planning (Strategist / Pioneer) ────────────────────────────────
+  { match: ["shipping now"],
+    example: "Ship search re-ranking v2 — final QA sign-off needed by Tuesday high" },
+  { match: ["up next"],
+    example: "Dark mode: kick off design review next sprint, eng starts week after" },
+  { match: ["ideas & exploration"],
+    example: "Idea: AI-powered reply suggestions for inbox — worth a one-pager?" },
+  { match: ["customer feedback"],
+    example: "Review 30 NPS responses from June cohort — identify top 3 themes" },
+
+  // ── Work › Strategist / Maker shared ─────────────────────────────────────
   { match: ["goals & okr"],
     example: "Set Q3 OKR: grow MAU 15% — finalize with team by Friday medium" },
   { match: ["roadmap"],
@@ -50,6 +60,44 @@ const CONTEXT_EXAMPLES: { match: string[]; example: string }[] = [
     example: "Add search filter feature to backlog — revisit next sprint low" },
   { match: ["someday"],
     example: "Idea: build internal analytics dashboard — revisit if bandwidth allows" },
+
+  // ── Work › Pioneer (Founder / Operator) ──────────────────────────────────
+  { match: ["pipeline"],
+    example: "Follow up with Series A lead — send deck update by Wednesday high" },
+  { match: ["experiments"],
+    example: "Launch A/B test on pricing page — set up tracking before Thursday" },
+  { match: ["hiring"],
+    example: "Send offer letter to senior engineer candidate by EOD Friday high" },
+  { match: ["partnerships"],
+    example: "Prep partnership proposal for Acme Corp — send by end of week medium" },
+  { match: ["cash flow"],
+    example: "Reconcile May payroll vs. projected burn — review with CFO Monday" },
+  { match: ["vendors"],
+    example: "Negotiate Stripe processing fee — request call before contract renewal" },
+  { match: ["compliance"],
+    example: "Confirm SOC 2 evidence collection is complete — audit starts July 1" },
+
+  // ── Work › Coach (Manager / Lead) ────────────────────────────────────────
+  { match: ["action items"],
+    example: "Follow up on eng spec review — ask Ji for status by Wednesday" },
+  { match: ["shoutouts"],
+    example: "Shout out Maya for shipping auth refactor on time + unblocking team" },
+  { match: ["blockers"],
+    example: "Unblock Daniel — escalate infra capacity ask to VP Eng today high" },
+  { match: ["skill gaps"],
+    example: "Identify public speaking gap with Alex — suggest conference talk low" },
+  { match: ["peer reviews"],
+    example: "Complete mid-year reviews for direct reports by June 30 high" },
+
+  // ── Work › Explorer (Consultant / Independent) ───────────────────────────
+  { match: ["proposals"],
+    example: "Send revised scope + timeline to Acme client by Thursday medium" },
+  { match: ["archive"],
+    example: "Archive completed Greenfield project docs to shared drive" },
+  { match: ["invoicing"],
+    example: "Invoice Acme for May retainer — net 30, send by June 2 high" },
+  { match: ["outreach"],
+    example: "Email 5 warm leads from conference — keep it short + personal" },
 
   // ── Work › Stakeholders ───────────────────────────────────────────────────
   { match: ["follow-ups"],
@@ -76,7 +124,6 @@ const CONTEXT_EXAMPLES: { match: string[]; example: string }[] = [
     example: "Prep Q2 planning meeting agenda — share with team by Monday" },
   { match: ["vendor requests"],
     example: "Follow up on Figma renewal quote — due end of quarter medium" },
-
   // ── Personal › Day-to-day Logistics ──────────────────────────────────────
   { match: ["groceries & shopping"],
     example: "Pick up diapers, oat milk, and fresh produce tomorrow morning" },
@@ -194,6 +241,9 @@ const WORK_CONTEXT_KEYWORDS = [
   "work", "execution", "planning", "stakeholders", "career", "admin",
   "roadmap", "okr", "feature", "milestone", "q1", "q2", "q3", "q4",
   "meeting", "sync", "leadership", "spec", "1:1", "wins",
+  "shipping now", "up next", "backlog", "ideas & exploration",
+  "pipeline", "experiments", "hiring", "partnerships", "cash flow",
+  "action items", "blockers", "shoutouts", "proposals", "invoicing",
 ];
 
 function getContextExample(context: string): string {
