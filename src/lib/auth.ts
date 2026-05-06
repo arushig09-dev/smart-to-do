@@ -39,17 +39,21 @@ export const authOptions: NextAuthOptions = {
           const existing = await prisma.user.findUnique({ where: { email } });
           if (existing) throw new Error("EMAIL_EXISTS");
 
-          const hash = await bcrypt.hash(credentials.password, 12);
-          const user = await prisma.user.create({
-            data: {
-              email,
-              name: credentials.name?.trim() || email.split("@")[0],
-              passwordHash: hash,
-            },
-          });
-
-          await seedUserProjects(user.id);
-          return { id: String(user.id), email: user.email, name: user.name };
+          try {
+            const hash = await bcrypt.hash(credentials.password, 12);
+            const user = await prisma.user.create({
+              data: {
+                email,
+                name: credentials.name?.trim() || email.split("@")[0],
+                passwordHash: hash,
+                onboardingDone: false,
+              },
+            });
+            return { id: String(user.id), email: user.email, name: user.name, isNew: true };
+          } catch (err) {
+            console.error("[signup] DB error:", err);
+            throw new Error("SIGNUP_FAILED");
+          }
         }
 
         // ── Sign-in ─────────────────────────────────────────────────────────
@@ -71,7 +75,8 @@ export const authOptions: NextAuthOptions = {
     // Store userId in the JWT on first sign-in
     async jwt({ token, user, account, profile }) {
       if (user) {
-        token.userId = user.id; // credentials: already String(db.id)
+        token.userId = user.id;
+        if ((user as { isNew?: boolean }).isNew) token.isNew = true;
       }
 
       // Google sign-in: find-or-create the user row
@@ -83,9 +88,11 @@ export const authOptions: NextAuthOptions = {
               email: token.email,
               name: token.name ?? token.email.split("@")[0],
               image: (profile as { picture?: string })?.picture ?? null,
+              onboardingDone: false,
             },
           });
-          await seedUserProjects(dbUser.id);
+          // Projects seeded after onboarding — mark token so login page redirects
+          token.isNew = true;
         } else if ((profile as { picture?: string })?.picture && !dbUser.image) {
           await prisma.user.update({
             where: { id: dbUser.id },
@@ -103,6 +110,7 @@ export const authOptions: NextAuthOptions = {
     async session({ session, token }) {
       session.user.id = token.userId as string;
       if (token.picture) session.user.image = token.picture as string;
+      if (token.isNew) (session.user as { isNew?: boolean }).isNew = true;
       return session;
     },
   },

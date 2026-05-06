@@ -12,6 +12,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   BAD_PASSWORD:   "Incorrect password. Please try again.",
   GOOGLE_ACCOUNT: "This email is linked to Google sign-in. Use the Google button below.",
   OAuthAccountNotLinked: "This email is already registered. Sign in with the original method.",
+  SIGNUP_FAILED:  "Account creation failed. Please try again in a moment.",
   default:        "Something went wrong. Please try again.",
 };
 
@@ -50,7 +51,12 @@ export default function LoginPage() {
     setLoading(false);
 
     if (result?.ok) {
-      router.push("/");
+      // New signups go to onboarding; returning users go straight to app
+      if (mode === "signup") {
+        router.push("/onboarding");
+      } else {
+        router.push("/");
+      }
     } else {
       const code = result?.error ?? "default";
       setError(ERROR_MESSAGES[code] ?? ERROR_MESSAGES.default);
