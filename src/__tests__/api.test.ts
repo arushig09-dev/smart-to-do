@@ -182,11 +182,15 @@ describe("POST /api/categorize", () => {
 
   it("returns a suggestion only from the user's own projects", async () => {
     authed(5);
-    // Simulate user 5's projects — a Fitness project with matching section
+    // Simulate user 5's projects — a nested tree: Personal > Fitness & Wellness > Workouts
     mockPrisma.project.findMany.mockResolvedValue([
       {
-        id: 999, name: "Fitness & Wellness", userId: 5, isArchived: false,
-        sections: [{ id: 8888, name: "Workouts", order: 0 }],
+        id: 100, name: "Personal", emoji: "🏠", userId: 5, isArchived: false,
+        parentId: null, sections: [],
+      },
+      {
+        id: 999, name: "Fitness & Wellness", emoji: "💪", userId: 5, isArchived: false,
+        parentId: 100, sections: [{ id: 8888, name: "Workouts", order: 0 }],
       },
     ]);
     const { POST } = await import("@/app/api/categorize/route");
@@ -195,6 +199,33 @@ describe("POST /api/categorize", () => {
     // Must return the user's actual project/section IDs, not any hardcoded values
     expect(data.projectId).toBe(999);
     expect(data.sectionId).toBe(8888);
+    // Must include topLevel fields pointing at the root ancestor
+    expect(data.topLevelProjectId).toBe(100);
+    expect(data.topLevelProjectName).toBe("Personal");
+  });
+
+  it("respects filterTopLevelId — only returns results under that root", async () => {
+    authed(5);
+    mockPrisma.project.findMany.mockResolvedValue([
+      { id: 1, name: "Work", emoji: "💼", userId: 5, isArchived: false, parentId: null, sections: [] },
+      { id: 2, name: "Personal", emoji: "🏠", userId: 5, isArchived: false, parentId: null, sections: [] },
+      {
+        id: 10, name: "Execution", emoji: "⚙️", userId: 5, isArchived: false,
+        parentId: 1, sections: [{ id: 101, name: "This Week", order: 0 }],
+      },
+      {
+        id: 20, name: "Health & Wellness", emoji: "💪", userId: 5, isArchived: false,
+        parentId: 2, sections: [{ id: 201, name: "Fitness", order: 0 }],
+      },
+    ]);
+    const { POST } = await import("@/app/api/categorize/route");
+    // Asking about "workout" but filtering to Work (id:1) only
+    const res = await POST(makeRequest("POST", { title: "workout plan", filterTopLevelId: 1 }));
+    const data = await res.json();
+    // Result must be under Work (id:1), even though Personal > Fitness is a better keyword match
+    if (data) {
+      expect(data.topLevelProjectId).toBe(1);
+    }
   });
 });
 

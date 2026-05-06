@@ -9,6 +9,10 @@ export interface CategorizeResult {
   sectionId: number | null;
   sectionName: string | null;
   confidence: number;
+  /** Root ancestor project (e.g. "Work", "Personal") — null if project is already top-level */
+  topLevelProjectId: number;
+  topLevelProjectName: string;
+  topLevelProjectEmoji: string | null;
 }
 
 // Maps common task words to project/section domain names for bonus scoring.
@@ -112,6 +116,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const title: string = body.title ?? "";
+  const filterTopLevelId: number | undefined = body.filterTopLevelId ?? undefined;
 
   if (!title.trim()) return NextResponse.json(null);
 
@@ -121,21 +126,43 @@ export async function POST(req: NextRequest) {
     orderBy: { order: "asc" },
   });
 
+  // Build a parent-lookup map so we can walk up the tree to find root ancestors
+  const parentMap = new Map<number, number | null>(
+    projects.map((p) => [p.id, p.parentId])
+  );
+
+  function getRootId(projectId: number): number {
+    let current = projectId;
+    let safety = 0;
+    while (parentMap.get(current) != null && safety < 20) {
+      current = parentMap.get(current)!;
+      safety++;
+    }
+    return current;
+  }
+
   const titleTokens = tokenize(title);
   let bestScore = 0;
   let best: CategorizeResult | null = null;
 
   for (const project of projects) {
+    // If a top-level filter is set, skip projects not under that root
+    if (filterTopLevelId !== undefined && getRootId(project.id) !== filterTopLevelId) {
+      continue;
+    }
+
     const projectScore =
       scoreName(titleTokens, project.name) +
       domainBonus(titleTokens, project.name);
+
+    const rootId = getRootId(project.id);
+    const rootProject = projects.find((p) => p.id === rootId) ?? project;
 
     if (project.sections.length > 0) {
       for (const section of project.sections) {
         const sectionScore =
           scoreName(titleTokens, section.name) +
           domainBonus(titleTokens, section.name);
-        // Sections weighted 1.5× — a strong section match beats a weak project match
         const total = projectScore + sectionScore * 1.5;
         if (total > bestScore) {
           bestScore = total;
@@ -146,6 +173,9 @@ export async function POST(req: NextRequest) {
             sectionId: section.id,
             sectionName: section.name,
             confidence: total,
+            topLevelProjectId: rootId,
+            topLevelProjectName: rootProject.name,
+            topLevelProjectEmoji: rootProject.emoji,
           };
         }
       }
@@ -158,11 +188,13 @@ export async function POST(req: NextRequest) {
         sectionId: null,
         sectionName: null,
         confidence: projectScore,
+        topLevelProjectId: rootId,
+        topLevelProjectName: rootProject.name,
+        topLevelProjectEmoji: rootProject.emoji,
       };
     }
   }
 
-  // Require minimum confidence to avoid weak/irrelevant suggestions
   const THRESHOLD = 4;
   return NextResponse.json(bestScore >= THRESHOLD ? best : null);
 }

@@ -218,6 +218,34 @@ const NLP_HINTS = [
 // Active → full input with contextual placeholder + Add / Cancel buttons.
 // Clicking a chip or the "+" button both expand to active state.
 
+// ─── callCategorize helper ────────────────────────────────────────────────────
+
+async function callCategorize(
+  title: string,
+  filterTopLevelId?: number
+): Promise<CategorizeResult | null> {
+  const res = await fetch("/api/categorize", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title, ...(filterTopLevelId !== undefined ? { filterTopLevelId } : {}) }),
+  });
+  if (!res.ok) return null;
+  return res.json();
+}
+
+// ─── AddTaskInline ────────────────────────────────────────────────────────────
+//
+// Step 0 (input)  → user types task title, hits Add task
+// Step 1 (top)    → pick Work / Personal (or any top-level root project)
+//                   pre-selected to the best suggestion
+// Step 2 (detail) → pick sub-project + section within the chosen top-level
+//                   auto-updates when user goes back and picks a different top-level
+//
+// Changing the top-level in step 1 triggers a fresh /api/categorize call with
+// filterTopLevelId so the sub-section suggestion always reflects the chosen area.
+
+type CategStep = "input" | "step1" | "step2";
+
 function AddTaskInline({
   onAdd,
   contextLabel,
@@ -235,14 +263,23 @@ function AddTaskInline({
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
   const [categorizing, setCategorizing] = useState(false);
-  const [suggestion, setSuggestion] = useState<CategorizeResult | null>(null);
-  const [selProjectId, setSelProjectId] = useState("");
+  const [step, setStep] = useState<CategStep>("input");
+  const [selTopLevelId, setSelTopLevelId] = useState("");   // root project
+  const [selProjectId, setSelProjectId] = useState("");     // sub-project
   const [selSectionId, setSelSectionId] = useState("");
   const ref = useRef<HTMLInputElement>(null);
 
   const example = getContextExample(contextLabel);
 
-  // Sections of the currently-selected project in the confirmation card
+  // Top-level projects (parentId === null)
+  const topLevelProjects = projects.filter((p) => p.parentId === null);
+
+  // Sub-projects under the currently selected top-level
+  const subProjects = selTopLevelId
+    ? projects.filter((p) => p.parentId === parseInt(selTopLevelId))
+    : [];
+
+  // Sections of the currently-selected sub-project
   const selProject = projects.find((p) => p.id.toString() === selProjectId);
   const selSections = selProject?.sections ?? [];
 
@@ -254,37 +291,32 @@ function AddTaskInline({
   function reset() {
     setOpen(false);
     setText("");
-    setSuggestion(null);
+    setStep("input");
+    setSelTopLevelId("");
     setSelProjectId("");
     setSelSectionId("");
   }
 
+  // ── Called when user submits the input (step 0 → step 1) ─────────────────
   async function submit() {
     const t = text.trim();
     if (!t) return;
 
-    // When in a project view (showCategorize=false), add directly
     if (!showCategorize) {
       onAdd(t);
       reset();
       return;
     }
 
-    // Attempt auto-categorization
     setCategorizing(true);
     try {
-      const res = await fetch("/api/categorize", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: t }),
-      });
-      const result: CategorizeResult | null = await res.json();
+      const result = await callCategorize(t);
       if (result) {
-        setSuggestion(result);
+        setSelTopLevelId(result.topLevelProjectId.toString());
         setSelProjectId(result.projectId.toString());
         setSelSectionId(result.sectionId?.toString() ?? "");
+        setStep("step1");
       } else {
-        // No match — add without project
         onAdd(t);
         reset();
       }
@@ -294,6 +326,41 @@ function AddTaskInline({
     } finally {
       setCategorizing(false);
     }
+  }
+
+  // ── Called when user picks a top-level project in step 1 ─────────────────
+  // If it's the same as the original suggestion, advance to step 2 immediately.
+  // If it's different, re-run categorization scoped to the new top-level.
+  async function pickTopLevel(topId: string) {
+    const prev = selTopLevelId;
+    setSelTopLevelId(topId);
+
+    if (topId === prev) {
+      setStep("step2");
+      return;
+    }
+
+    // Re-suggest within the new top-level
+    setCategorizing(true);
+    try {
+      const result = await callCategorize(text.trim(), parseInt(topId));
+      if (result) {
+        setSelProjectId(result.projectId.toString());
+        setSelSectionId(result.sectionId?.toString() ?? "");
+      } else {
+        // No strong match — default to first sub-project of the new top-level
+        const firstSub = projects.find((p) => p.parentId === parseInt(topId));
+        setSelProjectId(firstSub?.id.toString() ?? "");
+        setSelSectionId("");
+      }
+    } catch {
+      const firstSub = projects.find((p) => p.parentId === parseInt(topId));
+      setSelProjectId(firstSub?.id.toString() ?? "");
+      setSelSectionId("");
+    } finally {
+      setCategorizing(false);
+    }
+    setStep("step2");
   }
 
   function confirmAdd() {
@@ -328,93 +395,92 @@ function AddTaskInline({
     );
   }
 
-  // ── Active: input + chips + buttons ─────────────────────────────────────
+  // ── Active wrapper ────────────────────────────────────────────────────────
   return (
     <div className="px-4 py-3 border-t border-stone-100 dark:border-zinc-800">
-      <input
-        ref={ref}
-        value={text}
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !suggestion) submit();
-          if (e.key === "Escape") reset();
-        }}
-        onBlur={() => { if (!text.trim() && !suggestion) reset(); }}
-        placeholder={`e.g. "${example}"`}
-        className="w-full text-sm px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500"
-      />
 
-      {/* NLP hint chips */}
-      {!suggestion && (
-        <div className="mt-2 flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] text-zinc-400 mr-0.5">Type naturally:</span>
-          {NLP_HINTS.map((h) => (
-            <span
-              key={h.label}
-              title={h.tip}
-              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-stone-100 dark:bg-zinc-700 text-[11px] cursor-default"
+      {/* ── Step 0: task input ────────────────────────────────────────── */}
+      {step === "input" && (
+        <>
+          <input
+            ref={ref}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") submit();
+              if (e.key === "Escape") reset();
+            }}
+            onBlur={() => { if (!text.trim()) reset(); }}
+            placeholder={`e.g. "${example}"`}
+            className="w-full text-sm px-3 py-2 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-zinc-900 dark:text-zinc-100 placeholder-zinc-400 dark:placeholder-zinc-500"
+          />
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <span className="text-[11px] text-zinc-400 mr-0.5">Type naturally:</span>
+            {NLP_HINTS.map((h) => (
+              <span
+                key={h.label}
+                title={h.tip}
+                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-stone-100 dark:bg-zinc-700 text-[11px] cursor-default"
+              >
+                <span>{h.icon}</span>
+                <span className="font-medium text-zinc-600 dark:text-zinc-300">{h.label}</span>
+              </span>
+            ))}
+          </div>
+          <div className="mt-2 flex gap-2">
+            <button
+              onClick={submit}
+              disabled={categorizing}
+              className={`px-4 py-1.5 text-sm font-medium rounded-lg ${theme.button} disabled:opacity-60`}
             >
-              <span>{h.icon}</span>
-              <span className="font-medium text-zinc-600 dark:text-zinc-300">{h.label}</span>
-            </span>
-          ))}
-        </div>
+              {categorizing ? "Categorizing…" : "Add task"}
+            </button>
+            <button
+              onClick={reset}
+              className="px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition"
+            >
+              Cancel
+            </button>
+          </div>
+        </>
       )}
 
-      {/* ── Auto-categorize confirmation card ── */}
-      {suggestion && (
-        <div className="mt-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 p-3 space-y-2.5">
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
-            <span>📍</span> Suggested category
+      {/* ── Step 1: pick Work / Personal ─────────────────────────────── */}
+      {step === "step1" && (
+        <div className="mt-1 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 p-3 space-y-3">
+          {/* Task title recap */}
+          <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
+            <span className="font-medium text-zinc-700 dark:text-zinc-200">"{text.trim()}"</span>
           </p>
 
-          {/* Project dropdown */}
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-zinc-500 dark:text-zinc-400 w-14 flex-shrink-0">Project</label>
-            <select
-              value={selProjectId}
-              onChange={(e) => {
-                setSelProjectId(e.target.value);
-                setSelSectionId("");
-              }}
-              className="flex-1 text-sm px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-            >
-              <option value="">No project</option>
-              {projects.map((p) => (
-                <option key={p.id} value={p.id.toString()}>
-                  {p.emoji ?? "📋"} {p.name}
-                </option>
-              ))}
-            </select>
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 mb-2 flex items-center gap-1.5">
+              <span>📂</span> Step 1 of 2 — Work or Personal?
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {topLevelProjects.map((p) => {
+                const isSelected = selTopLevelId === p.id.toString();
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => pickTopLevel(p.id.toString())}
+                    disabled={categorizing}
+                    className={`flex flex-col items-center justify-center gap-1 py-3 px-2 rounded-xl border-2 transition-all text-sm font-medium
+                      ${isSelected
+                        ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300"
+                        : "border-zinc-200 dark:border-zinc-600 hover:border-indigo-300 dark:hover:border-indigo-600 text-zinc-600 dark:text-zinc-300 bg-white dark:bg-zinc-700/50"
+                      } disabled:opacity-60`}
+                  >
+                    <span className="text-xl">{p.emoji ?? "📋"}</span>
+                    <span className="text-xs">{p.name}</span>
+                    {isSelected && <span className="text-[10px] text-indigo-500">suggested ✓</span>}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
-          {/* Section dropdown — only shown when selected project has sections */}
-          {selSections.length > 0 && (
-            <div className="flex items-center gap-2">
-              <label className="text-xs text-zinc-500 dark:text-zinc-400 w-14 flex-shrink-0">Section</label>
-              <select
-                value={selSectionId}
-                onChange={(e) => setSelSectionId(e.target.value)}
-                className="flex-1 text-sm px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-              >
-                <option value="">No section</option>
-                {selSections.map((s) => (
-                  <option key={s.id} value={s.id.toString()}>
-                    {s.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Confirm + skip */}
           <div className="flex items-center gap-2 pt-0.5">
-            <button
-              onClick={confirmAdd}
-              className={`px-4 py-1.5 text-sm font-medium rounded-lg ${theme.button}`}
-            >
-              Add task
-            </button>
             <button
               onClick={skipProject}
               className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition px-2 py-1.5"
@@ -425,22 +491,84 @@ function AddTaskInline({
         </div>
       )}
 
-      {/* Action buttons — shown when no confirmation card yet */}
-      {!suggestion && (
-        <div className="mt-2 flex gap-2">
-          <button
-            onClick={submit}
-            disabled={categorizing}
-            className={`px-4 py-1.5 text-sm font-medium rounded-lg ${theme.button} disabled:opacity-60`}
-          >
-            {categorizing ? "Categorizing…" : "Add task"}
-          </button>
-          <button
-            onClick={reset}
-            className="px-3 py-1.5 text-sm text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 transition"
-          >
-            Cancel
-          </button>
+      {/* ── Step 2: pick sub-project + section ───────────────────────── */}
+      {step === "step2" && (
+        <div className="mt-1 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 p-3 space-y-2.5">
+          {/* Header with back link */}
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
+              <span>📍</span> Step 2 of 2 — Pick section
+            </p>
+            <button
+              onClick={() => setStep("step1")}
+              className="text-[11px] text-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition flex items-center gap-0.5"
+            >
+              ← {topLevelProjects.find((p) => p.id.toString() === selTopLevelId)?.emoji ?? ""}{" "}
+              {topLevelProjects.find((p) => p.id.toString() === selTopLevelId)?.name ?? "Back"}
+            </button>
+          </div>
+
+          {categorizing ? (
+            <p className="text-xs text-zinc-400 py-2 text-center">Finding best section…</p>
+          ) : (
+            <>
+              {/* Sub-project dropdown */}
+              <div className="flex items-center gap-2">
+                <label className="text-xs text-zinc-500 dark:text-zinc-400 w-16 flex-shrink-0">Project</label>
+                <select
+                  value={selProjectId}
+                  onChange={(e) => {
+                    setSelProjectId(e.target.value);
+                    setSelSectionId("");
+                  }}
+                  className="flex-1 text-sm px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">No sub-project</option>
+                  {subProjects.map((p) => (
+                    <option key={p.id} value={p.id.toString()}>
+                      {p.emoji ?? "📋"} {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Section dropdown */}
+              {selSections.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <label className="text-xs text-zinc-500 dark:text-zinc-400 w-16 flex-shrink-0">Section</label>
+                  <select
+                    value={selSectionId}
+                    onChange={(e) => setSelSectionId(e.target.value)}
+                    className="flex-1 text-sm px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  >
+                    <option value="">No section</option>
+                    {selSections.map((s) => (
+                      <option key={s.id} value={s.id.toString()}>
+                        {s.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Confirm + skip */}
+          <div className="flex items-center gap-2 pt-0.5">
+            <button
+              onClick={confirmAdd}
+              disabled={categorizing}
+              className={`px-4 py-1.5 text-sm font-medium rounded-lg ${theme.button} disabled:opacity-60`}
+            >
+              Add task
+            </button>
+            <button
+              onClick={skipProject}
+              className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition px-2 py-1.5"
+            >
+              Add without project
+            </button>
+          </div>
         </div>
       )}
     </div>
