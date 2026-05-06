@@ -22,6 +22,16 @@ function endOfDay(d: Date): Date {
   return out;
 }
 
+/** Saturday of the current week (or today if today IS Saturday). */
+export function thisWeekSaturday(from: Date = new Date()): Date {
+  const day = from.getDay();
+  const daysAway = day <= 6 ? 6 - day : 0;
+  const d = new Date(from);
+  d.setDate(d.getDate() + daysAway);
+  d.setHours(23, 59, 0, 0);
+  return d;
+}
+
 /** Last day of the current month. */
 export function endOfMonth(from: Date = new Date()): Date {
   // Day 0 of next month = last day of current month
@@ -142,6 +152,14 @@ export function parseTask(raw: string): ParseResult {
   }
 
   if (!dueAt) {
+    text = text.replace(/\bthis\s+weekend\b/i, () => {
+      dueAt = thisWeekSaturday(now);
+      dueLabel = "This Weekend";
+      return "";
+    });
+  }
+
+  if (!dueAt) {
     text = text.replace(/\bthis\s+week\b/i, () => {
       // Default to Friday; TaskList will override to Sunday if category is Personal
       dueAt = thisWeekFriday(now);
@@ -176,7 +194,7 @@ export function parseTask(raw: string): ParseResult {
     });
   }
 
-  text = text.replace(/\b(by|due)\s*$/i, "").replace(/\s{2,}/g, " ").trim();
+  text = text.replace(/\b(by|due|for|on|at|in|before|from)\s*$/i, "").replace(/\s{2,}/g, " ").trim();
   text = text.replace(/^[,.\-;:\s]+|[,.\-;:\s]+$/g, "");
 
   return { title: text || raw.trim(), dueAt, dueLabel, manualPriority, isThisWeek };
