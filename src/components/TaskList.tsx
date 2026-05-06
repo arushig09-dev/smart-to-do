@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import type { Task, Section, ActiveView, Project } from "@/types";
 import type { CategorizeResult } from "@/app/api/categorize/route";
 import { suggestPriority } from "@/lib/priority";
+import { parseTask } from "@/lib/nlp";
 import HabitSummaryWidget from "./HabitSummaryWidget";
 import TaskRow from "./TaskRow";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -262,14 +263,20 @@ const PRIORITY_LABELS: Record<string, { label: string; dot: string }> = {
   P2: { label: "Low",    dot: "🟢" },
 };
 
-function toDateInputValue(iso: string | null | undefined): string {
-  if (!iso) return "";
-  try { return new Date(iso).toISOString().slice(0, 10); } catch { return ""; }
+// Use LOCAL date parts so the displayed date matches the user's timezone.
+function toDateInputValue(date: Date | null | undefined): string {
+  if (!date) return "";
+  const d = new Date(date);
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  return `${yyyy}-${mm}-${dd}`;
 }
 
+// Store as UTC end-of-day so the date never shifts across timezones.
 function toIsoMidnight(dateInput: string): string | null {
   if (!dateInput) return null;
-  return new Date(dateInput + "T23:59:00").toISOString();
+  return `${dateInput}T23:59:00.000Z`;
 }
 
 function AddTaskInline({
@@ -352,18 +359,16 @@ function AddTaskInline({
 
     setCategorizing(true);
     try {
-      // Run NLP parse and categorize in parallel
-      const [parseData, categorizeData] = await Promise.all([
-        fetch(`/api/parse?text=${encodeURIComponent(t)}`)
-          .then((r) => (r.ok ? r.json() : {}))
-          .catch(() => ({})),
-        callCategorize(t),
-      ]);
+      // Run NLP client-side (uses browser's local timezone) and categorize in parallel.
+      // Client-side parse avoids a server round-trip and ensures date keywords like
+      // "tomorrow" or "by Friday" resolve in the user's timezone, not the server's.
+      const parsed = parseTask(t);
+      const categorizeData = await callCategorize(t);
 
       // NLP results
-      const pTitle: string = parseData.title ?? t;
-      const pDueAt: string | null = parseData.dueAt ?? null;   // ISO string from server
-      const pPriority: string | null = parseData.manualPriority ?? null;
+      const pTitle: string = parsed.title ?? t;
+      const pDueAt: Date | null = parsed.dueAt;
+      const pPriority: string | null = parsed.manualPriority;
 
       setCleanTitle(pTitle);
       setSelDueAt(toDateInputValue(pDueAt));
@@ -371,7 +376,7 @@ function AddTaskInline({
       // Auto-suggest priority if the user didn't type one
       const suggestion = suggestPriority({
         manualPriority: pPriority,
-        dueAt: pDueAt ? new Date(pDueAt) : null,
+        dueAt: pDueAt,
         isBlocked: false,
         updatedAt: new Date(),
       });

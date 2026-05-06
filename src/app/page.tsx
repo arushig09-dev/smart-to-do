@@ -3,11 +3,18 @@
 import { useState, useEffect, useCallback } from "react";
 import Sidebar from "@/components/Sidebar";
 import TaskList, { type AddExtras } from "@/components/TaskList";
+import { parseTask } from "@/lib/nlp";
 import TaskDetail from "@/components/TaskDetail";
 import HabitTracker from "@/components/HabitTracker";
 import ProjectOverview from "@/components/ProjectOverview";
 import { useTheme } from "@/contexts/ThemeContext";
 import type { Task, Project, Section, ActiveView } from "@/types";
+
+// Returns "yyyy-MM-dd" using LOCAL date parts (not UTC) so NLP dates
+// like "tomorrow" are correct for the user's timezone.
+function toLocalDateString(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 export default function Home() {
   const { theme } = useTheme();
@@ -86,11 +93,10 @@ export default function Home() {
         finalDueAt = extras.dueAt ?? null;
         finalPriority = extras.manualPriority ?? null;
       } else {
-        // No extras (direct add in project view) — parse from title
-        const parseRes = await fetch(`/api/parse?text=${encodeURIComponent(title)}`);
-        const parsed = parseRes.ok ? await parseRes.json() : {};
+        // Direct add (project view) — parse client-side using the user's local timezone
+        const parsed = parseTask(title);
         finalTitle = parsed.title ?? title;
-        finalDueAt = parsed.dueAt ?? null;
+        finalDueAt = parsed.dueAt ? `${toLocalDateString(parsed.dueAt)}T23:59:00.000Z` : null;
         finalPriority = parsed.manualPriority ?? null;
       }
 
