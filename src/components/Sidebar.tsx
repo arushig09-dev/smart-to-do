@@ -213,7 +213,7 @@ function ProfileMenu({ collapsed }: { collapsed: boolean }) {
   const { data: session } = useSession();
   const { theme, themes, setThemeId } = useTheme();
   const [open, setOpen] = useState(false);
-  const [deleteStep, setDeleteStep] = useState<"idle" | "confirm" | "deleting">("idle");
+  const [deleteStep, setDeleteStep] = useState<"idle" | "confirm" | "deleting" | "deleted">("idle");
   const ref = useRef<HTMLDivElement>(null);
 
   // Preferences stored in localStorage
@@ -239,7 +239,8 @@ function ProfileMenu({ collapsed }: { collapsed: boolean }) {
     try {
       const res = await fetch("/api/user/delete", { method: "DELETE" });
       if (res.ok) {
-        await signOut({ callbackUrl: "/login" });
+        setDeleteStep("deleted");
+        setTimeout(() => signOut({ callbackUrl: "/login" }), 1800);
       } else {
         setDeleteStep("confirm");
         alert("Something went wrong. Please try again.");
@@ -371,6 +372,16 @@ function ProfileMenu({ collapsed }: { collapsed: boolean }) {
           )}
 
           {/* Confirmation panel */}
+          {deleteStep === "deleted" && (
+            <div className="px-4 py-4 border-t border-zinc-100 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-800/60 flex flex-col items-center gap-1.5">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M20 6L9 17l-5-5" />
+              </svg>
+              <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">Account deleted</p>
+              <p className="text-[11px] text-zinc-400 dark:text-zinc-500">Redirecting you out…</p>
+            </div>
+          )}
+
           {(deleteStep === "confirm" || deleteStep === "deleting") && (
             <div className="px-4 py-3 border-t border-zinc-100 dark:border-zinc-800 bg-red-50 dark:bg-red-900/20">
               <p className="text-xs font-semibold text-red-700 dark:text-red-400 mb-1">Delete your account?</p>
