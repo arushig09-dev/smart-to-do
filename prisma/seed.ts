@@ -137,9 +137,9 @@ async function main() {
   const logistics = await createProject("Day-to-day Logistics", "🛒", "#84cc16", personal.id, 0);
   await addSections(logistics.id, ["Groceries & Shopping", "Home Maintenance", "Orders & Returns", "Other Errands"]);
 
-  // Family & Kids
+  // Family & Kids — logistics only (removed social/events parts)
   const family = await createProject("Family & Kids", "👨‍👩‍👧", "#fb7185", personal.id, 1);
-  await addSections(family.id, ["Baby & Parenting", "Appointments", "Events & Birthdays", "Playdates"]);
+  await addSections(family.id, ["Baby & Parenting", "Appointments", "Playdates"]);
 
   // Health & Wellness
   const health = await createProject("Health & Wellness", "💪", "#22c55e", personal.id, 2);
@@ -153,9 +153,13 @@ async function main() {
   const learning = await createProject("Learning & Hobbies", "🎓", "#7c3aed", personal.id, 4);
   await addSections(learning.id, ["Reading", "Courses", "Hobbies", "Personal Goals"]);
 
-  // Travel & Social
-  const travel = await createProject("Travel & Social", "✈️", "#0ea5e9", personal.id, 5);
-  await addSections(travel.id, ["Upcoming Trips", "Trip Planning", "Friends Catch-ups", "Packing"]);
+  // Social & Events — task-type based, not relationship-based
+  const social = await createProject("Social & Events", "🎉", "#ec4899", personal.id, 5);
+  await addSections(social.id, ["Keeping in Touch", "Plans & Meetups", "Milestones"]);
+
+  // Travel — trips only (social catchups moved to Social & Events)
+  const travel = await createProject("Travel", "✈️", "#0ea5e9", personal.id, 6);
+  await addSections(travel.id, ["Upcoming Trips", "Trip Planning", "Packing"]);
 
   console.log("  ✓ Personal folder structure");
   console.log("\nSeed complete!");

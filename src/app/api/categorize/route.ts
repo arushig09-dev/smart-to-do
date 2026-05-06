@@ -44,12 +44,40 @@ const DOMAIN_HINTS: { words: string[]; domains: string[] }[] = [
       "paint", "install", "carpet", "hvac"],
     domains: ["home", "maintenance", "repairs", "upkeep", "house", "decor"],
   },
+  // ── Social & Events (3 task-type based sections) ──────────────────────────
   {
-    words: ["birthday", "gift", "party", "event", "celebrate", "anniversary",
-      "dinner", "playdate", "friend", "family", "brunch", "wedding", "reunion"],
-    domains: ["family", "social", "friends", "events", "birthdays"],
+    // General social signal → routes to "Social & Events" project
+    words: ["dinner", "lunch", "coffee", "brunch", "drinks", "party",
+      "birthday", "anniversary", "wedding", "rsvp", "reply", "text",
+      "call", "reach out", "catch up", "gift", "invite", "gathering"],
+    domains: ["social", "events"],
   },
   {
+    // Keeping in Touch — communication as the primary action
+    // Domain only matches the SECTION name "Keeping in Touch"
+    words: ["reply", "respond", "text", "message", "email", "call", "ping",
+      "reach out", "follow up", "check in", "touch base", "write to",
+      "send note", "thank you note", "send message", "reach"],
+    domains: ["keeping", "touch"],
+  },
+  {
+    // Plans & Meetups — scheduling something in-person
+    // Domain only matches the SECTION name "Plans & Meetups"
+    words: ["dinner", "lunch", "coffee", "brunch", "drinks",
+      "plan", "meet", "hang", "hangout", "outing", "get together",
+      "catchup", "catch up", "invite", "host", "reserve", "reservation",
+      "book restaurant", "grab food", "grab coffee", "grab lunch",
+      "book table", "make reservation"],
+    domains: ["plans", "meetups"],
+  },
+  {
+    // Milestones — calendar-driven, gift/RSVP oriented
+    // Domain only matches the SECTION name "Milestones"
+    words: ["birthday", "anniversary", "gift", "present", "card", "rsvp",
+      "wedding", "graduation", "baby shower", "shower", "engagement",
+      "celebrate", "congratulate", "wish", "party", "reunion", "memorial"],
+    domains: ["milestone", "milestones", "birthdays"],
+  },  {
     words: ["tax", "bill", "payment", "budget", "expense",
       "subscription", "invoice", "bank", "finance", "receipt", "reimburse",
       "reimbursement", "hsa", "fsa", "401k", "ira", "claim", "deductible",
