@@ -387,6 +387,7 @@ function AddTaskInline({
         setSelProjectId(categorizeData.projectId.toString());
         setSelSectionId(categorizeData.sectionId?.toString() ?? "");
       }
+      // Always show confirm card — even with no match, user needs priority/due date
       setStep("confirm");
     } catch {
       onAdd(t);
@@ -408,13 +409,11 @@ function AddTaskInline({
       if (result) {
         setSelProjectId(result.projectId.toString());
         setSelSectionId(result.sectionId?.toString() ?? "");
-      } else {
-        const firstSub = projects.find((p) => p.parentId === parseInt(topId));
-        setSelProjectId(firstSub?.id.toString() ?? "");
       }
+      // If no confident match, leave dropdowns blank so user can choose explicitly —
+      // don't fall back to the first sub-project (that caused Health & Wellness surprises)
     } catch {
-      const firstSub = projects.find((p) => p.parentId === parseInt(topId));
-      setSelProjectId(firstSub?.id.toString() ?? "");
+      // silent — dropdowns stay blank
     } finally {
       setLoading(false);
     }

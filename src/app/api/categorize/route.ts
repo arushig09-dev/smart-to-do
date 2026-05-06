@@ -21,14 +21,15 @@ const DOMAIN_HINTS: { words: string[]; domains: string[] }[] = [
   {
     words: ["meeting", "prd", "sprint", "okr", "review", "deploy", "stakeholder",
       "eng", "feature", "roadmap", "spec", "bug", "feedback", "performance",
-      "1:1", "launch", "milestone", "presentation", "sync", "retro", "handoff"],
+      "1:1", "launch", "milestone", "presentation", "sync", "retro", "handoff",
+      "ticket", "jira", "pr", "diff", "commit", "release", "scope", "prioritize"],
     domains: ["work", "career", "strategy", "execution", "stakeholder", "product", "sprint"],
   },
   {
     words: ["doctor", "dentist", "appointment", "prescription", "medicine",
       "therapy", "clinic", "health", "medical", "vaccine", "checkup", "hospital",
       "insurance", "refill", "pharmacy"],
-    domains: ["health", "medical", "fitness", "wellness", "appointments"],
+    domains: ["health", "medical", "wellness", "appointments"],
   },
   {
     words: ["grocery", "groceries", "buy", "order", "amazon", "pick up",
@@ -49,7 +50,7 @@ const DOMAIN_HINTS: { words: string[]; domains: string[] }[] = [
     domains: ["family", "social", "friends", "events", "birthdays"],
   },
   {
-    words: ["tax", "bill", "payment", "budget", "insurance", "expense",
+    words: ["tax", "bill", "payment", "budget", "expense",
       "subscription", "invoice", "bank", "finance", "receipt", "reimburse"],
     domains: ["finance", "admin", "money", "bills", "taxes"],
   },
@@ -64,14 +65,17 @@ const DOMAIN_HINTS: { words: string[]; domains: string[] }[] = [
     domains: ["learning", "reading", "growth", "books", "courses", "podcasts"],
   },
   {
-    words: ["workout", "run", "gym", "exercise", "yoga", "fitness",
-      "walk", "nutrition", "meal prep", "sleep", "meditate"],
-    domains: ["fitness", "wellness", "health", "workout", "nutrition", "sleep"],
+    words: ["workout", "gym", "exercise", "yoga", "fitness",
+      "walk", "nutrition", "meal prep", "sleep", "meditate", "running"],
+    domains: ["fitness", "wellness", "workout", "nutrition", "sleep"],
   },
   {
     words: ["trip", "travel", "hotel", "flight", "vacation", "pack",
-      "outing", "visit", "itinerary", "airbnb", "portland"],
-    domains: ["travel", "trip", "outing", "planning"],
+      "outing", "visit", "itinerary", "airbnb",
+      "visa", "passport", "embassy", "consulate", "immigration",
+      "permit", "ds-160", "border", "customs", "ticket booking",
+      "check-in", "layover", "hostel", "resort"],
+    domains: ["travel", "trip", "outing", "upcoming", "social"],
   },
   {
     words: ["meal", "recipe", "cook", "dinner", "lunch", "breakfast",
@@ -80,8 +84,24 @@ const DOMAIN_HINTS: { words: string[]; domains: string[] }[] = [
   },
 ];
 
+// Words that carry no category signal — common in task titles but should not
+// influence which project/section wins (e.g. "fill form this week" would
+// otherwise score highly against a "This Week" section purely on "this"+"week").
+const STOP_WORDS = new Set([
+  "the", "and", "but", "not", "for", "are", "was", "its", "you", "can",
+  "all", "had", "one", "any", "this", "that", "with", "from", "have",
+  "will", "she", "his", "her", "our", "out", "who", "get", "use", "new",
+  "add", "out", "via", "per", "etc", "put",
+  // time / schedule filler words
+  "week", "next", "last", "soon", "today", "date", "time", "now", "ago",
+  "set", "due",
+]);
+
 function tokenize(text: string): string[] {
-  return text.toLowerCase().split(/\W+/).filter((w) => w.length >= 3);
+  return text
+    .toLowerCase()
+    .split(/\W+/)
+    .filter((w) => w.length >= 3 && !STOP_WORDS.has(w));
 }
 
 function scoreName(titleTokens: string[], name: string): number {
@@ -109,9 +129,10 @@ function domainBonus(titleTokens: string[], domainName: string): number {
     const matchesDomain = hint.domains.some((d) => domainLower.includes(d));
     if (!matchesDomain) continue;
     for (const tt of titleTokens) {
-      if (hint.words.some((w) => tt.includes(w) || w.includes(tt))) {
-        bonus += 3;
-        break; // one bonus per domain group
+      // Exact word match OR hint word fully contains the token (e.g. "visa" in hint list)
+      if (hint.words.some((w) => w === tt || w.startsWith(tt + " ") || w.endsWith(" " + tt))) {
+        bonus += 4;  // raised from 3 — domain signal is strong evidence
+        break;
       }
     }
   }
