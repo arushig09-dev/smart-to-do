@@ -156,7 +156,9 @@ export function parseTask(raw: string, referenceDate: Date = new Date()): ParseR
 
   // ── chrono-node fallback ─────────────────────────────────────────────────
   if (!dueAt) {
-    const results = chrono.parse(text, { instant: referenceDate, timezone: "UTC" });
+    // No timezone override — let chrono respect the local clock of whatever
+    // environment is calling this (the browser for client-side NLP calls).
+    const results = chrono.parse(text, referenceDate);
     if (results.length > 0) {
       const r = results[0];
       dueAt = r.date();
