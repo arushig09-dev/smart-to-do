@@ -453,11 +453,29 @@ export default function HabitTracker() {
           : h
       )
     );
-    await fetch(`/api/habits/${habitId}/log`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ localDate: localDateStr() }),
-    });
+    try {
+      const res = await fetch(`/api/habits/${habitId}/log`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ localDate: localDateStr() }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        console.error("[toggleLog] API error", res.status, body);
+        // Revert optimistic update on failure
+        setHabits((prev) =>
+          prev.map((h) =>
+            h.id === habitId
+              ? { ...h, completedToday: !h.completedToday, streak: h.completedToday ? Math.max(0, h.streak - 1) : h.streak + 1 }
+              : h
+          )
+        );
+        return;
+      }
+    } catch (err) {
+      console.error("[toggleLog] fetch failed", err);
+      return;
+    }
     load(true); // silent reload — no spinner flash
   }
 
