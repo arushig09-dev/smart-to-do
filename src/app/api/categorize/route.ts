@@ -295,13 +295,40 @@ const DOMAIN_HINTS: { words: string[]; domains: string[] }[] = [
 
   // ── Grocery & Errands
   {
+    // Store names + food keywords → ONLY match "Groceries & Shopping"
     words: [
-      "grocery", "groceries", "buy", "order", "amazon", "pick up",
-      "restock", "shopping", "errand", "post office", "return", "package",
-      "costco", "walmart", "target", "trader", "safeway", "whole foods",
-      "kroger", "cvs", "walgreens", "pharmacy run", "store run",
+      "grocery", "groceries", "costco", "walmart", "target", "trader joe",
+      "safeway", "whole foods", "kroger", "aldi", "food shopping", "produce",
+      "restock", "pantry", "stock up", "fresh food", "grocery run",
     ],
-    domains: ["grocery", "logistics", "daily", "errands", "supplies", "online"],
+    domains: ["grocery", "groceries & shopping"],
+  },
+  {
+    // Package / delivery / returns → ONLY match "Orders & Returns"
+    words: [
+      "order", "amazon", "package", "return", "tracking", "delivery",
+      "prime", "ups", "fedex", "usps", "refund", "exchange", "ship",
+      "shipment", "online order",
+    ],
+    domains: ["orders", "returns", "online", "supplies"],
+  },
+  {
+    // Generic errand vocabulary → matches "Other Errands", "logistics"
+    // but NOT grocery-specific
+    words: [
+      "errand", "pick up", "drop off", "post office", "store run",
+      "pharmacy run", "dmv", "dry clean", "bank run", "tailor",
+      "miscellaneous", "misc errand",
+    ],
+    domains: ["other errands", "errands", "logistics", "daily"],
+  },
+  {
+    // Shopping (non-food) → Groceries & Shopping for general supplies
+    words: [
+      "shopping", "buy", "restock", "cvs", "walgreens", "target run",
+      "walgreen", "rite aid", "dollar store",
+    ],
+    domains: ["grocery", "groceries & shopping", "supplies"],
   },
 
   // ── Home Maintenance
@@ -474,9 +501,81 @@ function cosine(a: number[], b: number[]): number {
   return dot / (Math.sqrt(magA) * Math.sqrt(magB) || 1);
 }
 
+// Short semantic hints appended to candidateText to help embedding differentiation.
+const SECTION_SYNONYMS: Record<string, string> = {
+  // Day-to-day Logistics
+  "Groceries & Shopping":  "grocery store food costco walmart whole foods supermarket",
+  "Orders & Returns":      "amazon package delivery return shipment online order",
+  "Home Maintenance":      "repair plumber electrician contractor cleaning fix hvac",
+  "Other Errands":         "errand post office dmv bank dry cleaning miscellaneous",
+  // Strategist / Pioneer
+  "Shipping Now":          "deploy launch release prod production go live ship",
+  "Up Next":               "next sprint upcoming planned queue prioritize soon",
+  "Backlog":               "backlog triage later someday deferred parking lot",
+  "Ideas & Exploration":   "idea brainstorm explore prototype spike research concept",
+  "Customer Feedback":     "customer feedback nps user pain support request",
+  "User Research":         "user research interview survey findings hypothesis",
+  "Data & Insights":       "data metrics dashboard analytics insight report",
+  "Competitive Intel":     "competitor benchmark analysis landscape intel",
+  "Open Questions":        "question unknown decision needed clarify open",
+  "Follow-ups":            "follow up nudge ping check waiting response needed",
+  "Waiting On":            "waiting blocked on dependency pending no response",
+  "To Discuss":            "discuss decision align agenda sync conversation",
+  "Escalations":           "escalate urgent blocked raise alert critical",
+  "Pre-launch":            "pre-launch checklist launch prep announcement",
+  "Launch Day":            "launch day go live announcement release deploy",
+  "Post-launch":           "post-launch monitor metrics retro learnings",
+  "Retrospective":         "retro lessons learned post-mortem reflection",
+  // Coach
+  "1:1s":                  "1:1 one on one direct report team check-in",
+  "Performance":           "performance review feedback growth direct report",
+  "Unblocking":            "unblock blocker obstacle help escalate remove",
+  "Recognition":           "shoutout kudos recognition celebrate win team",
+  "Goals & OKRs":          "okr goal objective key result quarterly north star",
+  "Retrospectives":        "retro retrospective lessons post-mortem",
+  // Hiring
+  "Roles Open":            "open role headcount job description hire req",
+  "Interviews":            "interview candidate screen loop hiring",
+  "Offers":                "offer letter compensation package close candidate",
+  "Onboarding":            "onboard new hire first day setup access",
+  // Pioneer Growth
+  "Pipeline":              "pipeline deal lead prospect sales crm",
+  "Marketing":             "campaign ads seo content growth marketing",
+  "Partnerships":          "partner partnership integration alliance co-sell",
+  "Outreach":              "cold email outreach linkedin warm lead prospect",
+  "Investors":             "investor vc fundraise term sheet pitch deck",
+  "Due Diligence":         "due diligence data room audit review legal",
+  "Pitch Prep":            "pitch deck fundraise investor presentation",
+  // Ops & Finance
+  "Invoices":              "invoice billing payment terms net 30 payroll",
+  "Payroll":               "payroll salary compensation run payroll",
+  "Infrastructure":        "server cloud aws infrastructure devops",
+  "Legal":                 "legal contract nda sow compliance",
+  // Career
+  "Wins":                  "win accomplishment shipped impact achievement",
+  "Goals":                 "goal target career objective growth plan",
+  "1:1 Prep":              "1:1 prep manager talking points notes",
+  "Skills to Build":       "skill learn certification gap development",
+  // Explorer
+  "Assignments":           "assignment homework due class deadline submit",
+  "Study Groups":          "study group team session prep collaborate",
+  "Applications":          "job application resume cover letter apply",
+  "Networking":            "networking linkedin referral intro connect",
+  "Side Projects":         "side project personal build ship code",
+  "Portfolio":             "portfolio showcase work samples publish",
+  // Travel
+  "Upcoming Trips":        "trip travel flight hotel vacation book",
+  "Trip Planning":         "plan itinerary research restaurant activity",
+  "Packing":               "pack packing list bag prepare luggage",
+  "Bucket List":           "bucket list dream trip someday adventure",
+};
+
 function buildCandidateText(topLevelName: string, projectName: string, sectionName: string | null): string {
   const parts = [topLevelName, projectName];
-  if (sectionName) parts.push(sectionName);
+  if (sectionName) {
+    const synonyms = sectionName ? SECTION_SYNONYMS[sectionName] : undefined;
+    parts.push(synonyms ? `${sectionName} (${synonyms})` : sectionName);
+  }
   return parts.join(" > ");
 }
 
