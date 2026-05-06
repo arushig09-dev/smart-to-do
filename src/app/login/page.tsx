@@ -51,9 +51,10 @@ export default function LoginPage() {
     setLoading(false);
 
     if (result?.ok) {
-      // New signups go to onboarding; returning users go straight to app
+      // Full page navigation for signup so the session cookie is definitely
+      // included when the browser hits /onboarding
       if (mode === "signup") {
-        router.push("/onboarding");
+        window.location.href = "/onboarding";
       } else {
         router.push("/");
       }

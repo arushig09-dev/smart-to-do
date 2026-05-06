@@ -6,6 +6,7 @@ export function middleware(req: NextRequest) {
   // Skip public paths
   if (
     pathname.startsWith("/login") ||
+    pathname.startsWith("/onboarding") ||
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/_next") ||
     pathname === "/favicon.ico"

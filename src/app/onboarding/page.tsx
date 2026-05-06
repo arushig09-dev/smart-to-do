@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import ClaroMark from "@/components/ClaroMark";
 import { CLARO_BRAND } from "@/lib/themes";
@@ -63,6 +64,7 @@ const PERSONAL_TRACKS = [
 ];
 
 export default function OnboardingPage() {
+  const { status } = useSession();
   const router = useRouter();
   const [step, setStep] = useState<"work" | "personal">("work");
   const [workPersona, setWorkPersona] = useState<string | null>(null);
@@ -72,6 +74,20 @@ export default function OnboardingPage() {
   const [customTrack, setCustomTrack] = useState("");
   const [customTracks, setCustomTracks] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+
+  // Redirect unauthenticated users to login
+  useEffect(() => {
+    if (status === "unauthenticated") router.replace("/login");
+  }, [status, router]);
+
+  if (status === "loading" || status === "unauthenticated") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-zinc-50 dark:bg-zinc-900">
+        <div className="w-8 h-8 border-2 border-t-transparent rounded-full animate-spin"
+          style={{ borderColor: CLARO_BRAND.gradientTo, borderTopColor: "transparent" }} />
+      </div>
+    );
+  }
 
   function toggleTrack(id: string) {
     setSelectedTracks((prev) => {
