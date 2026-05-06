@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Sidebar from "@/components/Sidebar";
-import TaskList from "@/components/TaskList";
+import TaskList, { type AddExtras } from "@/components/TaskList";
 import TaskDetail from "@/components/TaskDetail";
 import HabitTracker from "@/components/HabitTracker";
 import ProjectOverview from "@/components/ProjectOverview";
@@ -73,19 +73,34 @@ export default function Home() {
     }
   }, [activeView, allProjects]);
 
-  async function handleAddTask(title: string, sectionId?: number, projectId?: number) {
+  async function handleAddTask(title: string, sectionId?: number, projectId?: number, extras?: AddExtras) {
     setTaskError(null);
     try {
-      const parseRes = await fetch(`/api/parse?text=${encodeURIComponent(title)}`);
-      const parsed = parseRes.ok ? await parseRes.json() : {};
+      let finalTitle = title;
+      let finalDueAt: string | null = null;
+      let finalPriority: string | null = null;
+
+      if (extras) {
+        // Extras already parsed by the categorization wizard — skip re-parsing
+        finalTitle = extras.cleanTitle ?? title;
+        finalDueAt = extras.dueAt ?? null;
+        finalPriority = extras.manualPriority ?? null;
+      } else {
+        // No extras (direct add in project view) — parse from title
+        const parseRes = await fetch(`/api/parse?text=${encodeURIComponent(title)}`);
+        const parsed = parseRes.ok ? await parseRes.json() : {};
+        finalTitle = parsed.title ?? title;
+        finalDueAt = parsed.dueAt ?? null;
+        finalPriority = parsed.manualPriority ?? null;
+      }
 
       const res = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: parsed.title ?? title,
-          dueAt: parsed.dueAt ?? null,
-          manualPriority: parsed.manualPriority ?? null,
+          title: finalTitle,
+          dueAt: finalDueAt,
+          manualPriority: finalPriority,
           projectId: projectId ?? (activeView.type === "project" ? activeView.id : null),
           sectionId: sectionId ?? null,
         }),

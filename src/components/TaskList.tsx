@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import type { Task, Section, ActiveView, Project } from "@/types";
 import type { CategorizeResult } from "@/app/api/categorize/route";
+import { suggestPriority } from "@/lib/priority";
 import HabitSummaryWidget from "./HabitSummaryWidget";
 import TaskRow from "./TaskRow";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -218,6 +219,14 @@ const NLP_HINTS = [
 // Active → full input with contextual placeholder + Add / Cancel buttons.
 // Clicking a chip or the "+" button both expand to active state.
 
+// ─── AddExtras — extra fields collected in the categorization card ────────────
+
+export interface AddExtras {
+  cleanTitle?: string;           // NLP-cleaned version of what the user typed
+  dueAt?: string | null;         // ISO string or null
+  manualPriority?: string | null; // "P0" | "P1" | "P2" | null
+}
+
 // ─── callCategorize helper ────────────────────────────────────────────────────
 
 async function callCategorize(
@@ -238,13 +247,30 @@ async function callCategorize(
 // Step 0 (input)  → user types task title, hits Add task
 // Step 1 (top)    → pick Work / Personal (or any top-level root project)
 //                   pre-selected to the best suggestion
-// Step 2 (detail) → pick sub-project + section within the chosen top-level
-//                   auto-updates when user goes back and picks a different top-level
+// Step 2 (detail) → sub-project + section + Priority chips + Due date picker
+//                   Priority is auto-suggested (can be overridden)
+//                   Due date is prominently shown even when blank
 //
 // Changing the top-level in step 1 triggers a fresh /api/categorize call with
 // filterTopLevelId so the sub-section suggestion always reflects the chosen area.
 
 type CategStep = "input" | "step1" | "step2";
+
+const PRIORITY_LABELS: Record<string, { label: string; dot: string }> = {
+  P0: { label: "High",   dot: "🔴" },
+  P1: { label: "Medium", dot: "🟡" },
+  P2: { label: "Low",    dot: "🟢" },
+};
+
+function toDateInputValue(iso: string | null | undefined): string {
+  if (!iso) return "";
+  try { return new Date(iso).toISOString().slice(0, 10); } catch { return ""; }
+}
+
+function toIsoMidnight(dateInput: string): string | null {
+  if (!dateInput) return null;
+  return new Date(dateInput + "T23:59:00").toISOString();
+}
 
 function AddTaskInline({
   onAdd,
@@ -253,7 +279,7 @@ function AddTaskInline({
   showCategorize = false,
   projects = [],
 }: {
-  onAdd: (title: string, sectionId?: number, projectId?: number) => void;
+  onAdd: (title: string, sectionId?: number, projectId?: number, extras?: AddExtras) => void;
   contextLabel: string;
   triggerLabel?: string;
   showCategorize?: boolean;
@@ -264,11 +290,20 @@ function AddTaskInline({
   const [text, setText] = useState("");
   const [categorizing, setCategorizing] = useState(false);
   const [step, setStep] = useState<CategStep>("input");
-  const [selTopLevelId, setSelTopLevelId] = useState("");   // root project
-  const [selProjectId, setSelProjectId] = useState("");     // sub-project
-  const [selSectionId, setSelSectionId] = useState("");
-  const ref = useRef<HTMLInputElement>(null);
 
+  // Categorization state
+  const [selTopLevelId, setSelTopLevelId] = useState("");
+  const [selProjectId, setSelProjectId] = useState("");
+  const [selSectionId, setSelSectionId] = useState("");
+
+  // NLP parse results
+  const [cleanTitle, setCleanTitle] = useState("");
+  const [selDueAt, setSelDueAt] = useState("");         // yyyy-MM-dd for <input type=date>
+  const [selPriority, setSelPriority] = useState("");   // "P0" | "P1" | "P2"
+  const [autoReason, setAutoReason] = useState("");
+  const [priorityWasAuto, setPriorityWasAuto] = useState(false);
+
+  const ref = useRef<HTMLInputElement>(null);
   const example = getContextExample(contextLabel);
 
   // Top-level projects (parentId === null)
@@ -295,13 +330,20 @@ function AddTaskInline({
     setSelTopLevelId("");
     setSelProjectId("");
     setSelSectionId("");
+    setCleanTitle("");
+    setSelDueAt("");
+    setSelPriority("");
+    setAutoReason("");
+    setPriorityWasAuto(false);
   }
 
-  // ── Called when user submits the input (step 0 → step 1) ─────────────────
+  // ── Called when user submits the input (step 0 → step 1 or step 2) ───────
   async function submit() {
     const t = text.trim();
     if (!t) return;
 
+    // Direct add in project view — no categorization, but we still want priority/date
+    // For simplicity, direct adds skip the wizard and parse server-side as before
     if (!showCategorize) {
       onAdd(t);
       reset();
@@ -310,15 +352,42 @@ function AddTaskInline({
 
     setCategorizing(true);
     try {
-      const result = await callCategorize(t);
-      if (result) {
-        setSelTopLevelId(result.topLevelProjectId.toString());
-        setSelProjectId(result.projectId.toString());
-        setSelSectionId(result.sectionId?.toString() ?? "");
+      // Run NLP parse and categorize in parallel
+      const [parseData, categorizeData] = await Promise.all([
+        fetch(`/api/parse?text=${encodeURIComponent(t)}`)
+          .then((r) => (r.ok ? r.json() : {}))
+          .catch(() => ({})),
+        callCategorize(t),
+      ]);
+
+      // NLP results
+      const pTitle: string = parseData.title ?? t;
+      const pDueAt: string | null = parseData.dueAt ?? null;   // ISO string from server
+      const pPriority: string | null = parseData.manualPriority ?? null;
+
+      setCleanTitle(pTitle);
+      setSelDueAt(toDateInputValue(pDueAt));
+
+      // Auto-suggest priority if the user didn't type one
+      const suggestion = suggestPriority({
+        manualPriority: pPriority,
+        dueAt: pDueAt ? new Date(pDueAt) : null,
+        isBlocked: false,
+        updatedAt: new Date(),
+      });
+      setSelPriority(suggestion.priority);
+      setAutoReason(suggestion.reason);
+      setPriorityWasAuto(!pPriority);
+
+      // Categorization results
+      if (categorizeData) {
+        setSelTopLevelId(categorizeData.topLevelProjectId.toString());
+        setSelProjectId(categorizeData.projectId.toString());
+        setSelSectionId(categorizeData.sectionId?.toString() ?? "");
         setStep("step1");
       } else {
-        onAdd(t);
-        reset();
+        // No project match — skip step 1, go straight to step 2 for priority/date
+        setStep("step2");
       }
     } catch {
       onAdd(t);
@@ -328,9 +397,7 @@ function AddTaskInline({
     }
   }
 
-  // ── Called when user picks a top-level project in step 1 ─────────────────
-  // If it's the same as the original suggestion, advance to step 2 immediately.
-  // If it's different, re-run categorization scoped to the new top-level.
+  // ── Pick top-level project in step 1 ─────────────────────────────────────
   async function pickTopLevel(topId: string) {
     const prev = selTopLevelId;
     setSelTopLevelId(topId);
@@ -340,15 +407,14 @@ function AddTaskInline({
       return;
     }
 
-    // Re-suggest within the new top-level
+    // Re-suggest sub-section within the new top-level
     setCategorizing(true);
     try {
-      const result = await callCategorize(text.trim(), parseInt(topId));
+      const result = await callCategorize(cleanTitle || text.trim(), parseInt(topId));
       if (result) {
         setSelProjectId(result.projectId.toString());
         setSelSectionId(result.sectionId?.toString() ?? "");
       } else {
-        // No strong match — default to first sub-project of the new top-level
         const firstSub = projects.find((p) => p.parentId === parseInt(topId));
         setSelProjectId(firstSub?.id.toString() ?? "");
         setSelSectionId("");
@@ -366,7 +432,11 @@ function AddTaskInline({
   function confirmAdd() {
     const pid = selProjectId ? parseInt(selProjectId) : undefined;
     const sid = selSectionId ? parseInt(selSectionId) : undefined;
-    onAdd(text.trim(), sid, pid);
+    onAdd(cleanTitle || text.trim(), sid, pid, {
+      cleanTitle: cleanTitle || undefined,
+      dueAt: toIsoMidnight(selDueAt),
+      manualPriority: selPriority || null,
+    });
     reset();
   }
 
@@ -433,7 +503,7 @@ function AddTaskInline({
               disabled={categorizing}
               className={`px-4 py-1.5 text-sm font-medium rounded-lg ${theme.button} disabled:opacity-60`}
             >
-              {categorizing ? "Categorizing…" : "Add task"}
+              {categorizing ? "Analyzing…" : "Add task"}
             </button>
             <button
               onClick={reset}
@@ -448,9 +518,8 @@ function AddTaskInline({
       {/* ── Step 1: pick Work / Personal ─────────────────────────────── */}
       {step === "step1" && (
         <div className="mt-1 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 p-3 space-y-3">
-          {/* Task title recap */}
           <p className="text-xs text-zinc-500 dark:text-zinc-400 truncate">
-            <span className="font-medium text-zinc-700 dark:text-zinc-200">"{text.trim()}"</span>
+            <span className="font-medium text-zinc-700 dark:text-zinc-200">"{cleanTitle || text.trim()}"</span>
           </p>
 
           <div>
@@ -491,70 +560,133 @@ function AddTaskInline({
         </div>
       )}
 
-      {/* ── Step 2: pick sub-project + section ───────────────────────── */}
+      {/* ── Step 2: sub-project + section + priority + due date ───────── */}
       {step === "step2" && (
-        <div className="mt-1 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 p-3 space-y-2.5">
-          {/* Header with back link */}
+        <div className="mt-1 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 p-3 space-y-3">
+
+          {/* Header */}
           <div className="flex items-center justify-between">
             <p className="text-[11px] font-semibold uppercase tracking-widest text-zinc-400 flex items-center gap-1.5">
-              <span>📍</span> Step 2 of 2 — Pick section
+              <span>📍</span> {selTopLevelId ? "Step 2 of 2 — Details" : "Task details"}
             </p>
-            <button
-              onClick={() => setStep("step1")}
-              className="text-[11px] text-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition flex items-center gap-0.5"
-            >
-              ← {topLevelProjects.find((p) => p.id.toString() === selTopLevelId)?.emoji ?? ""}{" "}
-              {topLevelProjects.find((p) => p.id.toString() === selTopLevelId)?.name ?? "Back"}
-            </button>
+            {selTopLevelId && (
+              <button
+                onClick={() => setStep("step1")}
+                className="text-[11px] text-indigo-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition flex items-center gap-0.5"
+              >
+                ← {topLevelProjects.find((p) => p.id.toString() === selTopLevelId)?.emoji ?? ""}{" "}
+                {topLevelProjects.find((p) => p.id.toString() === selTopLevelId)?.name ?? "Back"}
+              </button>
+            )}
           </div>
 
           {categorizing ? (
             <p className="text-xs text-zinc-400 py-2 text-center">Finding best section…</p>
           ) : (
-            <>
-              {/* Sub-project dropdown */}
-              <div className="flex items-center gap-2">
-                <label className="text-xs text-zinc-500 dark:text-zinc-400 w-16 flex-shrink-0">Project</label>
-                <select
-                  value={selProjectId}
-                  onChange={(e) => {
-                    setSelProjectId(e.target.value);
-                    setSelSectionId("");
-                  }}
-                  className="flex-1 text-sm px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                >
-                  <option value="">No sub-project</option>
-                  {subProjects.map((p) => (
-                    <option key={p.id} value={p.id.toString()}>
-                      {p.emoji ?? "📋"} {p.name}
-                    </option>
-                  ))}
-                </select>
+            <div className="space-y-2.5">
+
+              {/* Sub-project + section — only shown when a top-level was chosen */}
+              {selTopLevelId && (
+                <>
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-zinc-500 dark:text-zinc-400 w-16 flex-shrink-0">Project</label>
+                    <select
+                      value={selProjectId}
+                      onChange={(e) => { setSelProjectId(e.target.value); setSelSectionId(""); }}
+                      className="flex-1 text-sm px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    >
+                      <option value="">No sub-project</option>
+                      {subProjects.map((p) => (
+                        <option key={p.id} value={p.id.toString()}>
+                          {p.emoji ?? "📋"} {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {selSections.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-zinc-500 dark:text-zinc-400 w-16 flex-shrink-0">Section</label>
+                      <select
+                        value={selSectionId}
+                        onChange={(e) => setSelSectionId(e.target.value)}
+                        className="flex-1 text-sm px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                      >
+                        <option value="">No section</option>
+                        {selSections.map((s) => (
+                          <option key={s.id} value={s.id.toString()}>
+                            {s.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="border-t border-zinc-200 dark:border-zinc-700" />
+                </>
+              )}
+
+              {/* ── Priority ── */}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                    🎯 Priority
+                  </label>
+                  {priorityWasAuto && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 font-medium">
+                      auto · {autoReason}
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  {(["P0", "P1", "P2"] as const).map((p) => {
+                    const { label, dot } = PRIORITY_LABELS[p];
+                    const isActive = selPriority === p;
+                    return (
+                      <button
+                        key={p}
+                        onClick={() => setSelPriority(p)}
+                        className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg border-2 text-xs font-medium transition-all
+                          ${isActive
+                            ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300"
+                            : "border-zinc-200 dark:border-zinc-600 text-zinc-500 dark:text-zinc-400 bg-white dark:bg-zinc-700/50 hover:border-zinc-300 dark:hover:border-zinc-500"
+                          }`}
+                      >
+                        <span>{dot}</span>
+                        <span>{label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Section dropdown */}
-              {selSections.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <label className="text-xs text-zinc-500 dark:text-zinc-400 w-16 flex-shrink-0">Section</label>
-                  <select
-                    value={selSectionId}
-                    onChange={(e) => setSelSectionId(e.target.value)}
-                    className="flex-1 text-sm px-2.5 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-600 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  >
-                    <option value="">No section</option>
-                    {selSections.map((s) => (
-                      <option key={s.id} value={s.id.toString()}>
-                        {s.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </>
+              {/* ── Due date ── */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-zinc-500 dark:text-zinc-400 flex items-center gap-1.5">
+                  📅 Due date
+                  {!selDueAt && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-orange-100 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400 font-medium animate-pulse">
+                      not set — add one?
+                    </span>
+                  )}
+                </label>
+                <input
+                  type="date"
+                  value={selDueAt}
+                  onChange={(e) => setSelDueAt(e.target.value)}
+                  className={`w-full text-sm px-3 py-2 rounded-lg border-2 bg-white dark:bg-zinc-700 text-zinc-900 dark:text-zinc-100 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-colors
+                    ${selDueAt
+                      ? "border-zinc-200 dark:border-zinc-600"
+                      : "border-orange-300 dark:border-orange-700 bg-orange-50 dark:bg-orange-900/10"
+                    }`}
+                />
+              </div>
+
+            </div>
           )}
 
           {/* Confirm + skip */}
-          <div className="flex items-center gap-2 pt-0.5">
+          <div className="flex items-center gap-2 pt-1">
             <button
               onClick={confirmAdd}
               disabled={categorizing}
@@ -566,7 +698,7 @@ function AddTaskInline({
               onClick={skipProject}
               className="text-xs text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 transition px-2 py-1.5"
             >
-              Add without project
+              Add without details
             </button>
           </div>
         </div>
@@ -602,7 +734,7 @@ export default function TaskList({
   onSelectTask: (t: Task) => void;
   onCompleteTask: (id: number) => void;
   onDeleteTask: (id: number) => void;
-  onAddTask: (title: string, sectionId?: number, projectId?: number) => void;
+  onAddTask: (title: string, sectionId?: number, projectId?: number, extras?: AddExtras) => void;
 }) {
   const { theme } = useTheme();
   const isProjectView = activeView.type === "project";
@@ -646,8 +778,7 @@ export default function TaskList({
                 onDelete={() => onDeleteTask(t.id)} showProject />
             ))}
             <AddTaskInline
-              onAdd={(title, sectionId, projectId) => onAddTask(title, sectionId, projectId)}
-              contextLabel="today"
+              onAdd={(title, sectionId, projectId, extras) => onAddTask(title, sectionId, projectId, extras)}              contextLabel="today"
               triggerLabel="Add for today"
               showCategorize
               projects={projects}
@@ -663,8 +794,7 @@ export default function TaskList({
                 onDelete={() => onDeleteTask(t.id)} showProject />
             ))}
             <AddTaskInline
-              onAdd={(title, sectionId, projectId) => onAddTask(title, sectionId, projectId)}
-              contextLabel="upcoming"
+              onAdd={(title, sectionId, projectId, extras) => onAddTask(title, sectionId, projectId, extras)}              contextLabel="upcoming"
               triggerLabel="Add upcoming task"
               showCategorize
               projects={projects}
