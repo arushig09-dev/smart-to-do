@@ -29,6 +29,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ logged: false });
   }
 
-  await prisma.habitEntry.create({ data: { habitId, date: today, userId } });
+  try {
+    await prisma.habitEntry.create({ data: { habitId, date: today, userId } });
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("[habit log] create failed:", msg);
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
   return NextResponse.json({ logged: true });
 }
