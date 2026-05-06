@@ -3,8 +3,10 @@
 import { useState, useEffect, useRef } from "react";
 import { useSession, signOut } from "next-auth/react";
 import Image from "next/image";
+import ClaroMark from "@/components/ClaroMark";
 import type { Project, ProjectNode, SmartView, ActiveView } from "@/types";
 import { useTheme } from "@/contexts/ThemeContext";
+import { CLARO_BRAND } from "@/lib/themes";
 
 function buildTree(projects: Project[]): ProjectNode[] {
   const map = new Map<number, ProjectNode>();
@@ -137,24 +139,33 @@ export default function Sidebar({ activeView, onViewChange }: { activeView: Acti
   return (
     <aside className={`h-full flex-shrink-0 flex flex-col ${theme.sidebarBg} border-r ${theme.borderColor} overflow-x-hidden transition-all duration-200 ${collapsed ? "w-14" : "w-64"}`}>
       {/* Brand + collapse toggle */}
-      <div className={`flex items-center border-b ${theme.borderColor} flex-shrink-0 ${collapsed ? "justify-center py-3" : "px-4 py-3.5 gap-2.5"}`}>
-        <button
-          onClick={() => setCollapsed((c) => !c)}
-          className={`w-7 h-7 rounded-lg ${theme.brand} flex items-center justify-center text-white text-xs font-bold select-none flex-shrink-0`}
-          title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-        >
-          {collapsed ? "»" : (
-            <svg width="16" height="16" viewBox="0 0 36 36" fill="none">
-              <path d="M24 12.5C22.3 11 20.3 10 18 10C13.6 10 10 13.6 10 18C10 22.4 13.6 26 18 26C20.3 26 22.3 25 24 23.5"
-                stroke="white" strokeWidth="2.5" strokeLinecap="round" fill="none"/>
-              <circle cx="25.5" cy="18" r="2" fill="white"/>
-            </svg>
-          )}
-        </button>
-        {!collapsed && (
-          <span className="font-semibold text-zinc-900 dark:text-zinc-100 text-sm tracking-tight flex-1 truncate">
-            Claro
-          </span>
+      <div className={`flex items-center border-b ${theme.borderColor} flex-shrink-0 ${
+        collapsed ? "justify-center py-4 px-2" : "px-4 py-4 gap-3"
+      }`}
+        style={{ background: CLARO_BRAND.panelGradient }}
+      >
+        {collapsed ? (
+          <button
+            onClick={() => setCollapsed(false)}
+            className="flex items-center justify-center select-none"
+            title="Expand sidebar"
+          >
+            <ClaroMark size={30} />
+          </button>
+        ) : (
+          <>
+            <ClaroMark size={28} />
+            <span className="font-bold text-white text-xl tracking-tight flex-1 truncate">
+              Claro
+            </span>
+            <button
+              onClick={() => setCollapsed(true)}
+              className="w-7 h-7 rounded-md bg-white/10 hover:bg-white/20 border border-white/20 flex items-center justify-center text-white/70 text-xs select-none flex-shrink-0 transition-colors"
+              title="Collapse sidebar"
+            >
+              ‹‹
+            </button>
+          </>
         )}
       </div>
 
@@ -245,7 +256,8 @@ function ProfileMenu({ collapsed }: { collapsed: boolean }) {
 
           {/* Identity header */}
           <div className="px-4 py-3 border-b border-zinc-100 dark:border-zinc-800 flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-indigo-600 flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 overflow-hidden">
+            <div             className="w-9 h-9 rounded-full flex items-center justify-center text-white text-sm font-semibold flex-shrink-0 overflow-hidden"
+              style={{ background: CLARO_BRAND.accentGradient }}>
               {user.image ? <img src={user.image} alt="" className="w-full h-full object-cover" /> : initials}
             </div>
             <div className="min-w-0">
@@ -329,14 +341,16 @@ function ProfileMenu({ collapsed }: { collapsed: boolean }) {
       {collapsed ? (
         <div className="flex justify-center py-3">
           <button onClick={() => setOpen((o) => !o)} title="Profile & settings"
-            className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-semibold overflow-hidden hover:ring-2 hover:ring-indigo-400 transition">
+            className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-semibold overflow-hidden hover:ring-2 hover:ring-violet-400 transition"
+            style={{ background: CLARO_BRAND.accentGradient }}>
             {user.image ? <img src={user.image} alt="" className="w-full h-full object-cover" /> : initials}
           </button>
         </div>
       ) : (
         <button onClick={() => setOpen((o) => !o)}
           className="w-full flex items-center gap-2.5 px-3 py-2.5 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
-          <div className="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 overflow-hidden">
+          <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0 overflow-hidden"
+            style={{ background: CLARO_BRAND.accentGradient }}>
             {user.image ? <img src={user.image} alt="" className="w-full h-full object-cover" /> : initials}
           </div>
           <div className="flex-1 min-w-0 text-left">

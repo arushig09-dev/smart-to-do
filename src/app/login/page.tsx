@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { signIn, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import ClaroMark from "@/components/ClaroMark";
+import { CLARO_BRAND } from "@/lib/themes";
 
 const ERROR_MESSAGES: Record<string, string> = {
   EMAIL_EXISTS:   "An account with this email already exists. Sign in instead.",
@@ -12,31 +14,6 @@ const ERROR_MESSAGES: Record<string, string> = {
   OAuthAccountNotLinked: "This email is already registered. Sign in with the original method.",
   default:        "Something went wrong. Please try again.",
 };
-
-// ── Claro "C·" logo mark (SVG) ───────────────────────────────────────────────
-function ClaroMark({ size = 36 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="36" height="36" rx="9" fill="url(#claroGrad)" />
-      {/* C letterform */}
-      <path
-        d="M24 12.5C22.3 11 20.3 10 18 10C13.6 10 10 13.6 10 18C10 22.4 13.6 26 18 26C20.3 26 22.3 25 24 23.5"
-        stroke="white"
-        strokeWidth="2.5"
-        strokeLinecap="round"
-        fill="none"
-      />
-      {/* dot */}
-      <circle cx="25.5" cy="18" r="2" fill="white" />
-      <defs>
-        <linearGradient id="claroGrad" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#6366f1" />
-          <stop offset="1" stopColor="#7c3aed" />
-        </linearGradient>
-      </defs>
-    </svg>
-  );
-}
 
 export default function LoginPage() {
   const { status } = useSession();
@@ -100,7 +77,7 @@ export default function LoginPage() {
 
       {/* ── Left panel: brand ────────────────────────────────────────────── */}
       <div className="hidden lg:flex lg:w-[45%] relative flex-col justify-between p-12 overflow-hidden"
-        style={{ background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 40%, #4c1d95 100%)" }}
+        style={{ background: CLARO_BRAND.panelGradient }}
       >
         {/* Background mesh blobs */}
         <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -223,7 +200,7 @@ export default function LoginPage() {
               type="submit"
               disabled={loading}
               className="w-full py-2.5 px-4 rounded-lg font-semibold text-sm text-white transition-all flex items-center justify-center gap-2 disabled:opacity-60"
-              style={{ background: "linear-gradient(135deg, #6366f1, #7c3aed)" }}
+              style={{ background: CLARO_BRAND.accentGradient }}
             >
               {loading ? (
                 <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />

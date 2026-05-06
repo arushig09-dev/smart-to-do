@@ -103,3 +103,21 @@ export const THEMES: ThemeDef[] = [
 ];
 
 export const DEFAULT_THEME = THEMES[0]; // sage
+
+// ── Claro brand constants ─────────────────────────────────────────────────────
+// These are identity-level colours that never change per-theme.
+// Always import from here — never hardcode hex values in components.
+export const CLARO_BRAND = {
+  // Logo mark gradient (used by ClaroMark, avatar initials)
+  gradientFrom: "#6366f1",   // indigo-500
+  gradientTo:   "#7c3aed",   // violet-600
+
+  // Sidebar / login hero panel dark gradient
+  panelGradient: "linear-gradient(135deg, #1e1b4b 0%, #312e81 50%, #4c1d95 100%)",
+
+  // Button / avatar gradient (lighter, vivid)
+  accentGradient: "linear-gradient(135deg, #6366f1, #7c3aed)",
+
+  // Hover ring on brand elements
+  hoverRing: "#7c3aed",
+} as const;
