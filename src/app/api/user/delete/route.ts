@@ -22,16 +22,12 @@ export async function DELETE() {
     prisma.babyFeedLog.deleteMany({ where: { userId } }),
     prisma.habitEntry.deleteMany({ where: { userId } }),
     prisma.habit.deleteMany({ where: { userId } }),
-    // Tasks — clear self-references and subtasks first
-    prisma.task.updateMany({ where: { userId }, data: { parentId: null } }),
-    prisma.taskLabel.deleteMany({
-      where: { task: { userId } },
-    }),
+    // Clear subtask parent references before deleting tasks
+    prisma.task.updateMany({ where: { userId }, data: { parentTaskId: null } }),
+    prisma.taskLabel.deleteMany({ where: { task: { userId } } }),
     prisma.task.deleteMany({ where: { userId } }),
     // Projects / sections
-    prisma.section.deleteMany({
-      where: { project: { userId } },
-    }),
+    prisma.section.deleteMany({ where: { project: { userId } } }),
     prisma.project.deleteMany({ where: { userId } }),
     // User record last
     prisma.user.delete({ where: { id: userId } }),
