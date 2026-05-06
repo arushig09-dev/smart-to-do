@@ -213,6 +213,7 @@ function ProfileMenu({ collapsed }: { collapsed: boolean }) {
   const { data: session } = useSession();
   const { theme, themes, setThemeId } = useTheme();
   const [open, setOpen] = useState(false);
+  const [deleteStep, setDeleteStep] = useState<"idle" | "confirm" | "deleting">("idle");
   const ref = useRef<HTMLDivElement>(null);
 
   // Preferences stored in localStorage
@@ -233,12 +234,32 @@ function ProfileMenu({ collapsed }: { collapsed: boolean }) {
     if (key === "pref_compact")     setCompactState(value === "true");
   };
 
+  const handleDeleteAccount = async () => {
+    setDeleteStep("deleting");
+    try {
+      const res = await fetch("/api/user/delete", { method: "DELETE" });
+      if (res.ok) {
+        await signOut({ callbackUrl: "/login" });
+      } else {
+        setDeleteStep("confirm");
+        alert("Something went wrong. Please try again.");
+      }
+    } catch {
+      setDeleteStep("confirm");
+      alert("Something went wrong. Please try again.");
+    }
+  };
+
   useEffect(() => {
     function handler(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
     if (open) document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) setDeleteStep("idle");
   }, [open]);
 
   const user = session?.user;
@@ -334,6 +355,42 @@ function ProfileMenu({ collapsed }: { collapsed: boolean }) {
             </svg>
             Log Out
           </button>
+
+          {/* Delete Account */}
+          {deleteStep === "idle" && (
+            <button onClick={() => setDeleteStep("confirm")}
+              className="w-full flex items-center gap-2.5 px-4 py-3 text-xs font-medium text-zinc-400 dark:text-zinc-500 hover:text-red-500 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors border-t border-zinc-100 dark:border-zinc-800">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                <path d="M10 11v6" /><path d="M14 11v6" />
+                <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+              </svg>
+              Delete account
+            </button>
+          )}
+
+          {/* Confirmation panel */}
+          {(deleteStep === "confirm" || deleteStep === "deleting") && (
+            <div className="px-4 py-3 border-t border-zinc-100 dark:border-zinc-800 bg-red-50 dark:bg-red-900/20">
+              <p className="text-xs font-semibold text-red-700 dark:text-red-400 mb-1">Delete your account?</p>
+              <p className="text-[11px] text-red-600/80 dark:text-red-400/70 mb-3 leading-snug">
+                This permanently removes all your tasks, projects, and data. This cannot be undone.
+              </p>
+              <div className="flex gap-2">
+                <button onClick={() => setDeleteStep("idle")} disabled={deleteStep === "deleting"}
+                  className="flex-1 text-xs py-1.5 rounded-md border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors disabled:opacity-50">
+                  Cancel
+                </button>
+                <button onClick={handleDeleteAccount} disabled={deleteStep === "deleting"}
+                  className="flex-1 text-xs py-1.5 rounded-md bg-red-600 hover:bg-red-700 text-white font-medium transition-colors disabled:opacity-60 flex items-center justify-center gap-1.5">
+                  {deleteStep === "deleting" ? (
+                    <><svg className="animate-spin" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>Deleting…</>
+                  ) : "Yes, delete everything"}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
