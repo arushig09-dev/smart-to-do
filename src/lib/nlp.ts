@@ -133,7 +133,7 @@ export function parseTask(raw: string, referenceDate: Date = new Date()): ParseR
   let manualPriority: string | null = null;
   let isThisWeek = false;
 
-  // ── Priority ────────────────────────────────────────────────────────────
+  // ── Priority (strip from title — these are metadata tags, not natural phrasing)
   text = text.replace(/\b[Pp][012]\b/, (m) => { manualPriority = m.toUpperCase(); return ""; });
   if (!manualPriority)
     text = text.replace(/\b(high|urgent|critical)\s*(?:priority)?\b/i, () => { manualPriority = "P0"; return ""; });
@@ -142,6 +142,11 @@ export function parseTask(raw: string, referenceDate: Date = new Date()): ParseR
   if (!manualPriority)
     text = text.replace(/\blow\s*(?:priority)?\b/i, () => { manualPriority = "P2"; return ""; });
 
+  // Clean up any whitespace left by priority removal, then lock in the title.
+  // Date phrases are extracted below but kept in the title — they are natural
+  // language ("plan a costco run for this weekend") not metadata tags.
+  const title = text.replace(/\s{2,}/g, " ").trim().replace(/^[,.\-;:\s]+|[,.\-;:\s]+$/g, "");
+
   // ── Custom patterns ──────────────────────────────────────────────────────
   for (const pat of CUSTOM_PATTERNS) {
     const m = text.match(pat.regex);
@@ -149,31 +154,21 @@ export function parseTask(raw: string, referenceDate: Date = new Date()): ParseR
       dueAt = pat.resolve(referenceDate);
       dueLabel = pat.label;
       isThisWeek = pat.isThisWeek ?? false;
-      text = text.replace(pat.regex, "");
-      break;
+      break; // date found — do NOT remove from text/title
     }
   }
 
   // ── chrono-node fallback ─────────────────────────────────────────────────
   if (!dueAt) {
-    // No timezone override — let chrono respect the local clock of whatever
-    // environment is calling this (the browser for client-side NLP calls).
     const results = chrono.parse(text, referenceDate);
     if (results.length > 0) {
       const r = results[0];
       dueAt = r.date();
-      dueAt.setHours(23, 59, 0, 0); // normalise to end-of-day
+      dueAt.setHours(23, 59, 0, 0);
       dueLabel = r.text;
-      text = text.slice(0, r.index) + text.slice(r.index + r.text.length);
+      // again — do NOT remove the date phrase from the title
     }
   }
 
-  // ── Clean title ──────────────────────────────────────────────────────────
-  text = text
-    .replace(/\b(by|due|for|on|at|in|before|from|before\s+the)\s*$/i, "")
-    .replace(/\s{2,}/g, " ")
-    .trim();
-  text = text.replace(/^[,.\-;:\s]+|[,.\-;:\s]+$/g, "");
-
-  return { title: text || raw.trim(), dueAt, dueLabel, manualPriority, isThisWeek };
+  return { title: title || raw.trim(), dueAt, dueLabel, manualPriority, isThisWeek };
 }
